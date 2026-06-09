@@ -17,20 +17,34 @@ Final project for the DNA & RNA Dynamics course.
 
 ## Project structure
 
-data/
-  raw/          # raw data, not committed
-  processed/    # processed objects, not committed
-scripts/
-  00_setup.R
-  01_load_raw_data.R
-  02_quality_control.R
-  03_raw_beta_m_values.R
-  04_normalization_noob.R
-  05_pca.R
-  06_differential_methylation_ttest.R
-  07_final_plots.R
-report/
-  team1_report.Rmd
-figures/
-results/
-docs/
+```text
+drd-final-project-team1/
+├── data/
+│   ├── raw/
+│   │   └── .gitkeep
+│   └── processed/
+│       └── .gitkeep
+├── scripts/
+│   ├── 00_setup.R
+│   ├── 01_load_raw_data.R
+│   ├── 02_quality_control.R
+│   ├── 03_raw_beta_m_values.R
+│   ├── 04_normalization_noob.R
+│   ├── 05_pca.R
+│   ├── 06_differential_methylation_ttest.R
+│   └── 07_final_plots.R
+├── report/
+│   └── team1_report.Rmd
+├── figures/
+│   └── .gitkeep
+├── results/
+│   └── .gitkeep
+├── docs/
+│   └── .gitkeep
+├── .gitignore
+└── README.md
+```
+
+## Notes
+
+Raw IDAT files and large processed objects should not be committed to GitHub.
