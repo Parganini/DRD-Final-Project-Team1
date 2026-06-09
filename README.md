@@ -27,12 +27,15 @@ drd-final-project-team1/
 ├── scripts/
 │   ├── 00_setup.R
 │   ├── 01_load_raw_data.R
-│   ├── 02_quality_control.R
-│   ├── 03_raw_beta_m_values.R
-│   ├── 04_normalization_noob.R
-│   ├── 05_pca.R
-│   ├── 06_differential_methylation_ttest.R
-│   └── 07_final_plots.R
+│   ├── 02_red_green_fluorescence.R
+│   ├── 03_mset_raw_and_qc.R
+│   ├── 04_raw_beta_m_values.R
+│   ├── 05_normalization_noob.R
+│   ├── 06_pca_normalized_beta.R
+│   ├── 07_differential_methylation_ttest.R
+│   ├── 08_multiple_testing_and_plots.R
+│   ├── 09_heatmap_top100.R
+│   └── run_pipeline.R
 ├── report/
 │   └── team1_report.Rmd
 ├── figures/
