@@ -1,0 +1,28 @@
+# R
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# renv
+renv/library/
+renv/staging/
+
+# Data: do not commit raw IDATs or large files
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Outputs
+*.html
+*.pdf
+*.docx
+figures/*
+!figures/.gitkeep
+results/*
+!results/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
