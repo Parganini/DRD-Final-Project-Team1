@@ -6,7 +6,6 @@
 # install.packages(c("tidyverse", "ggplot2", "pheatmap", "qqman"))
 
 library(minfi)
-library(tidyverse)
 library(ggplot2)
 library(pheatmap)
 
