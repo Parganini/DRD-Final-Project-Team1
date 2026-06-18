@@ -7,9 +7,9 @@ Final project for DNA & RNA Dynamics.
 - DRD_Team1_FinalReport.R: complete R workflow
 - DRD_Team1_FinalReport.Rmd: final report source
 - data/raw/: raw input data, including IDAT files and SampleSheet_Report_II.csv
-- esults/rds/: intermediate R objects
-- esults/tables/: exported tables
-- esults/figures/: exported figures
+- results/rds/: intermediate R objects
+- results/tables/: exported tables
+- results/figures/: exported figures
 
 ## Team 1 assignment
 
