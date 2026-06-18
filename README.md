@@ -25,5 +25,6 @@ From the repository root, run:
 
 `
 source("DRD_Team1_FinalReport.R")
+`
 
 To render the report, open DRD_Team1_FinalReport.Rmd in RStudio and knit it.
