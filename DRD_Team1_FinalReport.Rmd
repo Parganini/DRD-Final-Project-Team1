@@ -1,6 +1,6 @@
 ---
 title: "Comprehensive Analysis of DNA Methylation Using the Illumina HumanMethylation450 BeadChip Platform"
-subtitle: "DNA & RNA Dynamics final project, Team 1. Repository: [Parganini/DRD-T1-Methylation-Report-Old](https://github.com/Parganini/DRD-T1-Methylation-Report-Old)"
+subtitle: "DNA & RNA Dynamics final project, Team 1. Repository: [Parganini/DRD-Final-Project-Team1](https://github.com/Parganini/DRD-Final-Project-Team1)"
 author: "Fatemeh Bayat, Tamime Eter, Seyed Parsa Golshani, Amirhossein Heidari, Mahmoud Ahmed Mohamed Mohamed Ibrahim, Hector Eduardo Parga Najera, Bita Rahmani, Shayan Zanjaniha"
 date: "2026-06"
 output:
