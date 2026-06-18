@@ -1,0 +1,105 @@
+---
+title: "Comprehensive Analysis of DNA Methylation Using the Illumina HumanMethylation450 BeadChip Platform"
+subtitle: "DNA & RNA Dynamics final project, Team 1. Repository: [Parganini/DRD-T1-Methylation-Report-Old](https://github.com/Parganini/DRD-T1-Methylation-Report-Old)"
+author: "Fatemeh Bayat, Tamime Eter, Seyed Parsa Golshani, Amirhossein Heidari, Mahmoud Ahmed Mohamed Mohamed Ibrahim, Hector Eduardo Parga Najera, Bita Rahmani, Shayan Zanjaniha"
+date: "2026-06"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: false
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE,
+                      fig.align="center", dpi=300, fig.retina=2)
+knitr::opts_knit$set(root.dir=normalizePath("."))
+```
+
+# Introduction
+
+
+Team 1 assignments:
+
+- Address for the fluorescence check: `42796479`
+- Detection p-value threshold: `0.05`
+- Normalization method: `preprocessNoob`
+- Differential methylation test: `t-test`
+
+# Step 00. Basic Preparation
+
+Clean the R environment
+
+```{r clean-environment}
+rm(list=ls())
+```
+
+Load the packages required for this analysis
+
+```{r load-packages}
+library(minfi)
+library(qqman)
+library(gplots)
+```
+
+Define the folders used by the project
+
+```{r define-folders}
+baseDir <- "data/raw"
+rdsDir <- "results/rds"
+tablesDir <- "results/tables"
+figuresDir <- "results/figures"
+```
+
+# Step 01. Data Import and RGChannelSet Creation
+
+
+
+# Step 02. Red and Green Fluorescence Channels
+
+
+
+# Step 03. Team 1 Address Check
+
+
+
+# Step 04. MethylSet Creation
+
+
+
+# Step 05. Quality Control
+
+
+
+# Step 06. Raw Beta and M Values
+
+
+
+# Step 07. Normalization with preprocessNoob
+
+
+
+# Step 08. PCA on Normalized Beta Values
+
+
+
+# Step 09. Differential Methylation Analysis with t-test
+
+
+
+# Step 10. Multiple Testing Correction
+
+
+
+# Step 11. Volcano and Manhattan Plots
+
+
+
+# Step 12. Heatmap of the Top 100 CpGs
+
+
+
+# Conclusions
+
+

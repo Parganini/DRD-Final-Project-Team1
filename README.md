@@ -1,8 +1,17 @@
-# DRD Final Project - Team 1
+# DRD Team 1 Final Report
 
-Final project for the DNA & RNA Dynamics course.
+Final project for DNA & RNA Dynamics.
 
-## Team assignment
+## Main files
+
+- DRD_Team1_FinalReport.R: complete R workflow
+- DRD_Team1_FinalReport.Rmd: final report source
+- data/raw/: raw input data, including IDAT files and SampleSheet_Report_II.csv
+- esults/rds/: intermediate R objects
+- esults/tables/: exported tables
+- esults/figures/: exported figures
+
+## Team 1 assignment
 
 - Group ID: 1
 - Address: 42796479
@@ -10,44 +19,11 @@ Final project for the DNA & RNA Dynamics course.
 - Normalization: preprocessNoob
 - Differential methylation test: t-test
 
-## Deliverables
+## How to run
 
-- Rendered report: HTML or PDF
-- Raw R code used for each pipeline step
+From the repository root, run:
 
-## Project structure
+`
+source("DRD_Team1_FinalReport.R")
 
-```text
-drd-final-project-team1/
-├── data/
-│   ├── raw/
-│   │   └── .gitkeep
-│   └── processed/
-│       └── .gitkeep
-├── scripts/
-│   ├── 00_setup.R
-│   ├── 01_load_raw_data.R
-│   ├── 02_red_green_fluorescence.R
-│   ├── 03_mset_raw_and_qc.R
-│   ├── 04_raw_beta_m_values.R
-│   ├── 05_normalization_noob.R
-│   ├── 06_pca_normalized_beta.R
-│   ├── 07_differential_methylation_ttest.R
-│   ├── 08_multiple_testing_and_plots.R
-│   ├── 09_heatmap_top100.R
-│   └── run_pipeline.R
-├── report/
-│   └── team1_report.Rmd
-├── figures/
-│   └── .gitkeep
-├── results/
-│   └── .gitkeep
-├── docs/
-│   └── .gitkeep
-├── .gitignore
-└── README.md
-```
-
-## Notes
-
-Raw IDAT files and large processed objects should not be committed to GitHub.
+To render the report, open DRD_Team1_FinalReport.Rmd in RStudio and knit it.
