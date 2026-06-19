@@ -41,6 +41,7 @@ Load the packages required for this analysis
 library(minfi)
 library(qqman)
 library(gplots)
+library(IlluminaHumanMethylation450kmanifest)
 ```
 
 Define the folders used by the project
@@ -63,7 +64,7 @@ targets <- read.metharray.sheet("./data/raw")
 targets
 
 RGset <- read.metharray.exp(targets = targets)
-save(RGset, file = "RGset_Report.RData")
+save(RGset, file = file.path(rdsDir, "RGset_Report.RData"))
 
 RGset
 str(RGset)
@@ -119,7 +120,7 @@ Address `42796479` corresponds to the **AddressA (unmethylated)** position of pr
 ```{r step04-mset-raw}
 MSet.raw <- preprocessRaw(RGset)
 MSet.raw
-save(MSet.raw, file = "MSet_raw.RData")
+save(MSet.raw, file = file.path(rdsDir, "MSet_raw.RData"))
 
 Meth <- as.matrix(getMeth(MSet.raw))
 str(Meth)
@@ -156,30 +157,38 @@ The negative control probes show signal intensities below log2(10) in both chann
 
 ```{r step05-detection-pvalues}
 Detection_pvalue <- detectionP(RGset)
-save(Detection_pvalue, file = "Detection_pvalue.RData")
+save(Detection_pvalue, file = file.path(rdsDir, "Detection_pvalue.RData"))
 
 Over_Threshold <- Detection_pvalue > 0.05
 table(Over_Threshold)
 sum(Over_Threshold)
 
+Total_Failed_Positions <- sum(Over_Threshold)
+Total_Detection_Tests <- length(Over_Threshold)
+Total_Failed_Percentage <- Total_Failed_Positions / Total_Detection_Tests * 100
+
 failed_probe_message <- sprintf(
-  "There are %s failed probes with a detection p-value higher than 0.05",
-  sum(Over_Threshold)
+  "There are %s failed detection tests with a detection p-value higher than 0.05",
+  Total_Failed_Positions
 )
 
 Over_Threshold_Per_Sample <- colSums(Over_Threshold)
 Over_Threshold_Per_Sample
 
+Over_Threshold_Fraction_Per_Sample <- colMeans(Over_Threshold)
+Over_Threshold_Fraction_Per_Sample
+
 failed <- data.frame(
   Sample = names(Over_Threshold_Per_Sample),
-  n_Failed_Positions = Over_Threshold_Per_Sample
+  n_Failed_Positions = Over_Threshold_Per_Sample,
+  Fraction_Failed_Positions = Over_Threshold_Fraction_Per_Sample,
+  Percentage_Failed_Positions = Over_Threshold_Fraction_Per_Sample * 100
 )
 print(failed)
 print(failed_probe_message)
 ```
 
-Using Team 1's detection p-value threshold of 0.05, `r sum(Over_Threshold)` probes failed across all samples out of 485,512 total (less than 1.3%). The number of failed positions per sample ranges from `r min(Over_Threshold_Per_Sample)` (best sample) to `r max(Over_Threshold_Per_Sample)` (worst sample), indicating that overall data quality is acceptable to proceed with normalization, though some samples show more failed probes than others.
-
+Using Team 1's detection p-value threshold of 0.05, there are `r Total_Failed_Positions` failed detection tests across all samples, corresponding to `r round(Total_Failed_Percentage, 2)`% of all probe-sample detection tests. Per sample, the number of failed positions ranges from `r min(Over_Threshold_Per_Sample)` to `r max(Over_Threshold_Per_Sample)`, corresponding to `r round(min(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% to `r round(max(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% of positions. Since all samples show a low percentage of failed positions, the overall detection quality is good and all samples can be kept for the next steps.
 
 # Step 06. Raw Beta and M Values
 
