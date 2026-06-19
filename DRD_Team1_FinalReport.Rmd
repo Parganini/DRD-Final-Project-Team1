@@ -54,22 +54,131 @@ figuresDir <- "results/figures"
 
 # Step 01. Data Import and RGChannelSet Creation
 
+```{r step01-load-data}
+list.files("./data/raw/")
+SampleSheet <- read.csv("./data/raw/SampleSheet_Report_II.csv", header = TRUE)
+SampleSheet
 
+targets <- read.metharray.sheet("./data/raw")
+targets
+
+RGset <- read.metharray.exp(targets = targets)
+save(RGset, file = "RGset_Report.RData")
+
+RGset
+str(RGset)
+```
+
+The `SampleSheet` contains the metadata for our 8 samples, including group (CTRL/DIS), sex, and Sentrix ID/Position. `read.metharray.sheet()` reads this sheet and automatically attaches the file paths needed to locate the corresponding idat files. `read.metharray.exp()` then loads the raw Red and Green fluorescence intensities for all samples into an `RGChannelSet` object called `RGset`.
 
 # Step 02. Red and Green Fluorescence Channels
 
+```{r step02-extract-channels}
+Red <- data.frame(getRed(RGset))
+dim(Red)
+head(Red)
 
+Green <- data.frame(getGreen(RGset))
+dim(Green)
+head(Green)
+```
+
+`getRed()` and `getGreen()` extract the raw fluorescence intensity matrices from `RGset`, one row per probe address and one column per sample.
 
 # Step 03. Team 1 Address Check
 
+```{r step03-address-lookup}
+TARGET_ADDRESS <- "42796479"
 
+getManifest(RGset)
+ProbeInfo_I  <- data.frame(getProbeInfo(RGset, type = "I"))
+ProbeInfo_II <- data.frame(getProbeInfo(RGset, type = "II"))
+
+ProbeInfo_I[ProbeInfo_I$AddressA == TARGET_ADDRESS, ]
+ProbeInfo_I[ProbeInfo_I$AddressB == TARGET_ADDRESS, ]
+ProbeInfo_II[ProbeInfo_II$AddressA == TARGET_ADDRESS, ]
+
+Red_fluorescences   <- Red[rownames(Red) == TARGET_ADDRESS, ]
+Green_fluorescences <- Green[rownames(Green) == TARGET_ADDRESS, ]
+
+df_summary_probes <- data.frame(
+  Sample             = colnames(Red_fluorescences),
+  Red_Fluorescence   = as.numeric(Red_fluorescences[1, ]),
+  Green_Fluorescence = as.numeric(Green_fluorescences[1, ]),
+  Type               = "I",
+  Color              = "Red"
+)
+
+print(df_summary_probes)
+```
+
+Address `42796479` corresponds to the **AddressA (unmethylated)** position of probe **cg10602367**, a **Type I, Red-channel** probe. Type I probes use a single color channel, so the Green fluorescence values for this address are near background levels across all samples, while Red fluorescence varies between samples — reflecting biological differences in signal intensity at this CpG site.
 
 # Step 04. MethylSet Creation
 
+```{r step04-mset-raw}
+MSet.raw <- preprocessRaw(RGset)
+MSet.raw
+save(MSet.raw, file = "MSet_raw.RData")
 
+Meth <- as.matrix(getMeth(MSet.raw))
+str(Meth)
+head(Meth)
+
+Unmeth <- as.matrix(getUnmeth(MSet.raw))
+str(Unmeth)
+head(Unmeth)
+
+Meth[rownames(Meth) == "cg10602367",]
+Unmeth[rownames(Unmeth) == "cg10602367",]
+```
+
+`preprocessRaw()` converts the raw Red/Green intensities in `RGset` into a `MethylSet`, splitting the signal into **Methylated** and **Unmethylated** intensities for each probe. For our probe `cg10602367`, the Unmethylated signal is substantially higher than the Methylated signal across all 8 samples, consistent with the Red-channel Type I design identified in Step 3.
 
 # Step 05. Quality Control
 
+```{r step05-qc-plot}
+qc <- getQC(MSet.raw)
+qc
+plotQC(qc)
+```
+
+The QC plot shows the median methylated (mMed) and unmethylated (uMed) signal intensities per sample. Samples with higher values in both signals indicate higher quality. Most samples show median values in the 8.6–11.2 range (log2 scale); a few samples (e.g. GSM5319603, GSM5319609) show comparatively lower values, suggesting somewhat lower signal quality.
+
+```{r step05-negative-controls}
+NegativeControl <- data.frame(getProbeInfo(RGset, type = "Control"))
+table(NegativeControl$Type)
+head(NegativeControl)
+controlStripPlot(RGset, controls = "NEGATIVE")
+```
+
+The negative control probes show signal intensities below log2(10) in both channels across all samples, indicating acceptable background noise levels.
+
+```{r step05-detection-pvalues}
+Detection_pvalue <- detectionP(RGset)
+save(Detection_pvalue, file = "Detection_pvalue.RData")
+
+Over_Threshold <- Detection_pvalue > 0.05
+table(Over_Threshold)
+sum(Over_Threshold)
+
+failed_probe_message <- sprintf(
+  "There are %s failed probes with a detection p-value higher than 0.05",
+  sum(Over_Threshold)
+)
+
+Over_Threshold_Per_Sample <- colSums(Over_Threshold)
+Over_Threshold_Per_Sample
+
+failed <- data.frame(
+  Sample = names(Over_Threshold_Per_Sample),
+  n_Failed_Positions = Over_Threshold_Per_Sample
+)
+print(failed)
+print(failed_probe_message)
+```
+
+Using Team 1's detection p-value threshold of 0.05, `r sum(Over_Threshold)` probes failed across all samples out of 485,512 total (less than 1.3%). The number of failed positions per sample ranges from `r min(Over_Threshold_Per_Sample)` (best sample) to `r max(Over_Threshold_Per_Sample)` (worst sample), indicating that overall data quality is acceptable to proceed with normalization, though some samples show more failed probes than others.
 
 
 # Step 06. Raw Beta and M Values
