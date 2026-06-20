@@ -144,7 +144,7 @@ qc
 plotQC(qc)
 ```
 
-The QC plot shows the median methylated (mMed) and unmethylated (uMed) signal intensities per sample. Samples with higher values in both signals indicate higher quality. Most samples show median values in the 8.6–11.2 range (log2 scale); a few samples (e.g. GSM5319603, GSM5319609) show comparatively lower values, suggesting somewhat lower signal quality.
+**Interpretation:** The QC plot shows the median methylated (mMed) and unmethylated (uMed) signal intensities per sample. Samples with higher values in both signals indicate higher quality. Most samples show median values in the 8.6–11.2 range (log2 scale); a few samples (e.g. GSM5319603, GSM5319609) show comparatively lower values, suggesting somewhat lower signal quality.
 
 ```{r step05-negative-controls}
 NegativeControl <- data.frame(getProbeInfo(RGset, type = "Control"))
@@ -188,11 +188,121 @@ print(failed)
 print(failed_probe_message)
 ```
 
-Using Team 1's detection p-value threshold of 0.05, there are `r Total_Failed_Positions` failed detection tests across all samples, corresponding to `r round(Total_Failed_Percentage, 2)`% of all probe-sample detection tests. Per sample, the number of failed positions ranges from `r min(Over_Threshold_Per_Sample)` to `r max(Over_Threshold_Per_Sample)`, corresponding to `r round(min(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% to `r round(max(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% of positions. Since all samples show a low percentage of failed positions, the overall detection quality is good and all samples can be kept for the next steps.
+**Interpretation:** Using Team 1's detection p-value threshold of 0.05, there are `r Total_Failed_Positions` failed detection tests across all samples, corresponding to `r round(Total_Failed_Percentage, 2)`% of all probe-sample detection tests. Per sample, the number of failed positions ranges from `r min(Over_Threshold_Per_Sample)` to `r max(Over_Threshold_Per_Sample)`, corresponding to `r round(min(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% to `r round(max(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% of positions. Since all samples show a low percentage of failed positions, the overall detection quality is good and all samples can be kept for the next steps.
 
 # Step 06. Raw Beta and M Values
 
+We retrieve beta and M value matrices from the raw MethylSet.
 
+Extract raw beta values and inspect their dimensions and distribution.
+```{r step06-beta-raw}
+beta <- getBeta(MSet.raw)
+class(beta)
+dim(beta)
+head(beta)
+summary(beta)
+```
+
+Extract raw M values and inspect their dimensions and distribution.
+```{r step06-m-raw}
+M <- getM(MSet.raw)
+dim(M)
+head(M)
+summary(M)
+```
+
+Save raw beta and M matrices.
+```{r step06-save-beta-m}
+saveRDS(beta, file=file.path(rdsDir, "beta_raw.rds"))
+saveRDS(M, file=file.path(rdsDir, "M_raw.rds"))
+```
+
+Recover phenotype data to split samples by group.
+```{r step06-phenotype-data}
+pheno <- data.frame(pData(RGset))
+str(pheno)
+table(pheno$Group)
+```
+
+Split beta values into CTRL and DIS groups.
+```{r step06-split-beta}
+beta_CTRL <- beta[, pheno$Group=="CTRL"]
+beta_DIS <- beta[, pheno$Group == "DIS"]
+
+dim(beta_CTRL)
+dim(beta_DIS)
+```
+
+Split M values into CTRL and DIS groups.
+```{r step06-split-m}
+M_CTRL <- M[, pheno$Group=="CTRL"]
+M_DIS <- M[, pheno$Group=="DIS"]
+
+dim(M_CTRL)
+dim(M_DIS)
+```
+
+Calculate mean beta and M values per CpG within each group.
+```{r step06-summary-beta-m}
+mean_of_beta_CTRL <- apply(beta_CTRL, 1, mean, na.rm=TRUE)
+mean_of_beta_DIS <- apply(beta_DIS, 1, mean, na.rm=TRUE)
+
+mean_of_M_CTRL <- apply(M_CTRL, 1, mean, na.rm=TRUE)
+mean_of_M_DIS <- apply(M_DIS, 1, mean, na.rm = TRUE)
+```
+Remove infinite M values before density estimation.
+```{r step06-clean-infinite-m}
+mean_of_M_CTRL <- mean_of_M_CTRL[is.finite(mean_of_M_CTRL)]
+mean_of_M_DIS <- mean_of_M_DIS[is.finite(mean_of_M_DIS)]
+```
+
+Estimate density distributions for raw beta and M means.
+```{r step06-density-estimation}
+d_mean_of_beta_CTRL <- density(mean_of_beta_CTRL, na.rm=TRUE)
+d_mean_of_beta_DIS <- density(mean_of_beta_DIS, na.rm=TRUE)
+
+d_mean_of_M_CTRL <- density(mean_of_M_CTRL, na.rm=TRUE)
+d_mean_of_M_DIS <- density(mean_of_M_DIS, na.rm=TRUE)
+```
+
+Plot raw beta density distributions by group.
+```{r step06-plot-beta-density, message=FALSE, warning=FALSE}
+plot(d_mean_of_beta_CTRL, col="blue",
+     main="Raw beta values", xlab="Mean beta")
+
+lines(d_mean_of_beta_DIS, col="red")
+
+legend("topright", legend=c("CTRL", "DIS"),
+       col=c("blue", "red"), lty=1, bty="n")
+```
+
+Plot raw M value density distributions by group.
+```{r step06-plot-M-density, message=FALSE, warning=FALSE}
+plot(d_mean_of_M_CTRL, col="blue",
+     main="Raw M values", xlab="Mean M")
+
+lines(d_mean_of_M_DIS, col="red")
+
+legend("topright", legend=c("CTRL", "DIS"),
+       col=c("blue", "red"), lty=1, bty="n")
+```
+
+**Interpretation:** The raw beta and M-value density curves for CTRL and DIS samples show broadly similar distributions. Small shifts between the two groups can be observed, but the overall methylation profiles are largely comparable at the raw-data level.
+
+Save summary vectors used for the density plots.
+```{r step06-save-summary-vectors}
+saveRDS(mean_of_beta_CTRL,
+        file=file.path(rdsDir, "mean_of_beta_raw_CTRL.rds"))
+
+saveRDS(mean_of_beta_DIS,
+        file=file.path(rdsDir, "mean_of_beta_raw_DIS.rds"))
+
+saveRDS(mean_of_M_CTRL,
+        file=file.path(rdsDir, "mean_of_M_raw_CTRL.rds"))
+
+saveRDS(mean_of_M_DIS,
+        file=file.path(rdsDir, "mean_of_M_raw_DIS.rds"))
+```
 
 # Step 07. Normalization with preprocessNoob
 

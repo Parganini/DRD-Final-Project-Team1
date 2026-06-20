@@ -194,7 +194,101 @@ print(failed_probe_message)
 ### STEP 06: calculate raw beta and M values
 ###############################################################################
 
+## getBeta and getM retrieve beta and M value matrices from the raw MethylSet.
 
+### Extract raw beta values and inspect their dimensions and distribution.
+beta <- getBeta(MSet.raw)
+class(beta)
+dim(beta)
+head(beta)
+summary(beta)
+
+### Extract raw M values and inspect their dimensions and distribution.
+M <- getM(MSet.raw)
+dim(M)
+head(M)
+summary(M)
+
+### Save raw beta and M matrices.
+saveRDS(beta, file=file.path(rdsDir, "beta_raw.rds"))
+saveRDS(M, file=file.path(rdsDir, "M_raw.rds"))
+
+### Recover phenotype data to split samples by group.
+pheno <- data.frame(pData(RGset))
+str(pheno)
+table(pheno$Group)
+
+### Split beta values into CTRL and DIS groups.
+beta_CTRL <- beta[, pheno$Group=="CTRL"]
+beta_DIS <- beta[, pheno$Group=="DIS"]
+
+### Split M values into CTRL and DIS groups.
+M_CTRL <- M[, pheno$Group=="CTRL"]
+M_DIS <- M[, pheno$Group=="DIS"]
+
+dim(beta_CTRL)
+dim(beta_DIS)
+dim(M_CTRL)
+dim(M_DIS)
+
+### Calculate mean beta and M values per CpG within each group.
+mean_of_beta_CTRL <- apply(beta_CTRL, 1, mean, na.rm=TRUE)
+mean_of_beta_DIS <- apply(beta_DIS, 1, mean, na.rm=TRUE)
+
+mean_of_M_CTRL <- apply(M_CTRL, 1, mean, na.rm=TRUE)
+mean_of_M_DIS <- apply(M_DIS, 1, mean, na.rm=TRUE)
+
+### Remove infinite M values before density estimation.
+mean_of_M_CTRL <- mean_of_M_CTRL[is.finite(mean_of_M_CTRL)]
+mean_of_M_DIS <- mean_of_M_DIS[is.finite(mean_of_M_DIS)]
+
+### Estimate density distributions for raw beta and M means.
+d_mean_of_beta_CTRL <- density(mean_of_beta_CTRL, na.rm=TRUE)
+d_mean_of_beta_DIS <- density(mean_of_beta_DIS, na.rm=TRUE)
+
+d_mean_of_M_CTRL <- density(mean_of_M_CTRL, na.rm=TRUE)
+d_mean_of_M_DIS <- density(mean_of_M_DIS, na.rm=TRUE)
+
+### Plot raw beta density distributions by group.
+png(file.path(figuresDir, "step06_raw_beta_density_CTRL_DIS.png"),
+    width=7, height=6, units="in", res=300, pointsize=11)
+
+plot(d_mean_of_beta_CTRL, col="blue",
+     main="Raw beta values", xlab="Mean beta")
+
+lines(d_mean_of_beta_DIS, col="red")
+
+legend("topright", legend=c("CTRL", "DIS"),
+       col=c("blue", "red"), lty=1, bty="n")
+
+dev.off()
+
+### Plot raw M value density distributions by group.
+png(file.path(figuresDir, "step06_raw_M_density_CTRL_DIS.png"),
+    width=7, height=6, units="in", res=300, pointsize=11)
+
+plot(d_mean_of_M_CTRL, col="blue",
+     main="Raw M values", xlab="Mean M")
+
+lines(d_mean_of_M_DIS, col="red")
+
+legend("topright", legend=c("CTRL", "DIS"),
+       col=c("blue", "red"), lty=1, bty="n")
+
+dev.off()
+
+### Save summary vectors used for the density plots.
+saveRDS(mean_of_beta_CTRL,
+        file=file.path(rdsDir, "mean_of_beta_raw_CTRL.rds"))
+
+saveRDS(mean_of_beta_DIS,
+        file=file.path(rdsDir, "mean_of_beta_raw_DIS.rds"))
+
+saveRDS(mean_of_M_CTRL,
+        file=file.path(rdsDir, "mean_of_M_raw_CTRL.rds"))
+
+saveRDS(mean_of_M_DIS,
+        file=file.path(rdsDir, "mean_of_M_raw_DIS.rds"))
 
 ###############################################################################
 ### STEP 07: normalization using preprocessNoob
