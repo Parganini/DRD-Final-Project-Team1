@@ -20,6 +20,7 @@ library(minfi)
 library(qqman)
 library(gplots)
 library(IlluminaHumanMethylation450kmanifest)
+library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
 
 ### Define input and output folders relative to the repository root.
 baseDir <- "data/raw"
@@ -143,7 +144,9 @@ qc
 # Some samples show comparatively lower methylated and unmethylated signals.
 # Overall, the data can be kept for the next steps, but sample quality should
 # be considered when interpreting downstream results.
+png(file.path(figuresDir, "step05_qcplot.png"), width=7, height=6, units="in", res=300, pointsize=11)
 plotQC(qc)
+dev.off()
 
 # Extracts all control probes from the array
 # Count Control Types
@@ -151,7 +154,9 @@ plotQC(qc)
 NegativeControl <- data.frame(getProbeInfo(RGset, type = "Control"))
 table(NegativeControl$Type)
 head(NegativeControl)
+png(file.path(figuresDir, "step05_controlstripplot.png"), width=7, height=6, units="in", res=300, pointsize=11)
 controlStripPlot(RGset, controls = "NEGATIVE")
+dev.off()
 
 
 # --- c. Detection p-values (Group 1 threshold = 0.05) ---
@@ -295,6 +300,122 @@ saveRDS(mean_of_M_DIS,
 ###############################################################################
 ## Team 1 normalization method: preprocessNoob.
 
+### Open the raw RGChannelSet and raw beta matrix saved in previous steps.
+load(file.path(rdsDir, "RGset_Report.RData"))
+beta <- readRDS(file.path(rdsDir, "beta_raw.rds"))
+
+### Inspect the raw RGChannelSet and beta matrix.
+RGset
+head(beta)
+dim(beta)
+
+### Retrieve Type I and Type II probe annotations from the manifest.
+dfI <- data.frame(getProbeInfo(RGset, type="I"))
+dfII <- data.frame(getProbeInfo(RGset, type="II"))
+
+dim(dfI)
+dim(dfII)
+str(dfI)
+str(dfII)
+head(dfI$Name)
+head(dfII$Name)
+
+### Split raw beta values by probe chemistry.
+beta_I <- beta[rownames(beta) %in% dfI$Name,]
+beta_II <- beta[rownames(beta) %in% dfII$Name,]
+
+dim(beta_I)
+dim(beta_II)
+
+### Calculate mean raw beta by probe chemistry.
+mean_of_beta_I <- apply(beta_I, 1, mean, na.rm=T)
+mean_of_beta_II <- apply(beta_II, 1, mean, na.rm=T)
+
+### Estimate density of raw beta means by probe chemistry.
+d_mean_of_beta_I <- density(mean_of_beta_I, na.rm=T)
+d_mean_of_beta_II <- density(mean_of_beta_II, na.rm=T)
+
+### Calculate and estimate density of raw beta standard deviations.
+sd_of_beta_I <- apply(beta_I, 1, sd, na.rm=T)
+sd_of_beta_II <- apply(beta_II, 1, sd, na.rm=T)
+
+d_sd_of_beta_I <- density(sd_of_beta_I, na.rm=T)
+d_sd_of_beta_II <- density(sd_of_beta_II, na.rm=T)
+
+### Normalize the raw RGChannelSet with preprocessNoob.
+preprocessNoob_results <- preprocessNoob(RGset)
+
+### Inspect the normalized object.
+str(preprocessNoob_results)
+class(preprocessNoob_results)
+preprocessNoob_results
+
+### Extract normalized beta and M values.
+beta_preprocessNoob <- getBeta(preprocessNoob_results)
+M_preprocessNoob <- getM(preprocessNoob_results)
+
+head(beta_preprocessNoob)
+dim(beta_preprocessNoob)
+
+### Save normalized objects for reproducibility.
+saveRDS(preprocessNoob_results, file=file.path(rdsDir, "preprocessNoob_results.rds"))
+saveRDS(beta_preprocessNoob, file=file.path(rdsDir, "beta_preprocessNoob.rds"))
+saveRDS(M_preprocessNoob, file=file.path(rdsDir, "M_preprocessNoob.rds"))
+
+### Split normalized beta values by probe chemistry.
+beta_preprocessNoob_I <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfI$Name,]
+beta_preprocessNoob_II <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfII$Name,]
+
+### Calculate mean normalized beta values by probe chemistry.
+mean_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, mean, na.rm=T)
+mean_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, mean, na.rm=T)
+
+### Estimate density of normalized beta means.
+d_mean_of_beta_preprocessNoob_I <- density(mean_of_beta_preprocessNoob_I, na.rm=T)
+d_mean_of_beta_preprocessNoob_II <- density(mean_of_beta_preprocessNoob_II, na.rm=T)
+
+### Calculate and estimate density of normalized beta standard deviations.
+sd_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, sd, na.rm=T)
+sd_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, sd, na.rm=T)
+
+d_sd_of_beta_preprocessNoob_I <- density(sd_of_beta_preprocessNoob_I, na.rm=T)
+d_sd_of_beta_preprocessNoob_II <- density(sd_of_beta_preprocessNoob_II, na.rm=T)
+
+### Define colors for the raw and normalized beta boxplots.
+pheno <- data.frame(pData(RGset))
+pheno$Group
+
+boxplot_col <- c(CTRL = "blue", DIS = "red")[as.character(pheno$Group)]
+boxplot_col
+
+### Compare raw and normalized beta values using plots.
+png(file.path(figuresDir, "step07_raw_vs_preprocessNoob_6panel.png"), width=13, height=7, units="in", res=300, pointsize=10)
+par(mfrow = c(2, 3), mar = c(4.5, 4.5, 3, 1), oma = c(1, 1, 1, 5))
+
+plot(d_mean_of_beta_I, col = "blue", main = "raw beta", xlim = c(0, 1), ylim = c(0, 5))
+lines(d_mean_of_beta_II, col="red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+plot(d_sd_of_beta_I, col="blue", main="raw sd", xlim=c(0,0.6), ylim=c(0,60))
+lines(d_sd_of_beta_II, col = "red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+boxplot(beta, ylim = c(0, 1), col = boxplot_col, main = "raw beta", names=FALSE)
+axis( 1, at = seq_len(ncol(beta)), labels = seq_len(ncol(beta)), cex.axis = 0.8)
+legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue", "red"), bty = "n", cex = 0.8, xpd = NA)
+
+plot(d_mean_of_beta_preprocessNoob_I, col="blue", main="preprocessNoob beta", xlim=c(0,1), ylim=c(0,5))
+lines(d_mean_of_beta_preprocessNoob_II, col = "red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+plot(d_sd_of_beta_preprocessNoob_I, col="blue", main="preprocessNoob sd", xlim=c(0,0.6), ylim=c(0,60))
+lines(d_sd_of_beta_preprocessNoob_II, col = "red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+boxplot(beta_preprocessNoob, ylim = c(0, 1), col = boxplot_col, main = "preprocessNoob beta", names=FALSE)
+axis( 1, at = seq_len(ncol(beta_preprocessNoob)), labels = seq_len(ncol(beta_preprocessNoob)), cex.axis = 0.8)
+legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue", "red"), bty = "n", cex = 0.8, xpd = NA)
+dev.off()
 
 
 ###############################################################################

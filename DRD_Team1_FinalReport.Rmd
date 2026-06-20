@@ -306,7 +306,159 @@ saveRDS(mean_of_M_DIS,
 
 # Step 07. Normalization with preprocessNoob
 
+The assigned Team 1 normalization method was `preprocessNoob`. Raw and normalized beta values were compared by Type I and Type II probe chemistry. This comparison is important because Infinium Type I and Type II assays can show systematic differences: Type II beta values tend to be shifted toward intermediate methylation levels and can show different variability from Type I probes. Normalization is used to reduce technical variation before biological interpretation.
 
+Open the raw RGChannelSet and raw beta matrix saved in previous steps.
+```{r step07-load-raw-data}
+load(file.path(rdsDir, "RGset_Report.RData"))
+beta <- readRDS(file.path(rdsDir, "beta_raw.rds"))
+```
+
+Inspect the raw RGChannelSet and beta matrix.
+```{r step07-inspect-raw-data}
+RGset
+head(beta)
+dim(beta)
+```
+
+Retrieve Type I and Type II probe annotations from the manifest.
+```{r step07-probe-annotations}
+dfI <- data.frame(getProbeInfo(RGset, type="I"))
+dfII <- data.frame(getProbeInfo(RGset, type="II"))
+
+dim(dfI)
+dim(dfII)
+str(dfI)
+str(dfII)
+head(dfI$Name)
+head(dfII$Name)
+```
+
+Split raw beta values by probe chemistry.
+```{r step07-split-beta-by-chemistry}
+beta_I <- beta[rownames(beta) %in% dfI$Name,]
+beta_II <- beta[rownames(beta) %in% dfII$Name,]
+
+dim(beta_I)
+dim(beta_II)
+```
+
+Calculate mean raw beta by probe chemistry.
+```{r step07-mean-beta-by-chemistry}
+mean_of_beta_I <- apply(beta_I, 1, mean, na.rm=T)
+mean_of_beta_II <- apply(beta_II, 1, mean, na.rm=T)
+```
+
+Estimate density of raw beta means by probe chemistry.
+```{r step07-density-beta-by-chemistry}
+d_mean_of_beta_I <- density(mean_of_beta_I, na.rm=T)
+d_mean_of_beta_II <- density(mean_of_beta_II, na.rm=T)
+```
+
+Calculate and estimate density of raw beta standard deviations.
+```{r step07-beta-sd-by-chemistry}
+sd_of_beta_I <- apply(beta_I, 1, sd, na.rm=T)
+sd_of_beta_II <- apply(beta_II, 1, sd, na.rm=T)
+
+d_sd_of_beta_I <- density(sd_of_beta_I, na.rm=T)
+d_sd_of_beta_II <- density(sd_of_beta_II, na.rm=T)
+```
+Normalize the raw RGChannelSet with preprocessNoob.
+```{r step07-normalization}
+preprocessNoob_results <- preprocessNoob(RGset)
+```
+
+Inspect the normalized object.
+```{r step07-inspect-normalized-object}
+str(preprocessNoob_results)
+class(preprocessNoob_results)
+preprocessNoob_results
+```
+
+Extract normalized beta and M values.
+```{r step07-extract-normalized-beta-m}
+beta_preprocessNoob <- getBeta(preprocessNoob_results)
+M_preprocessNoob <- getM(preprocessNoob_results)
+
+head(beta_preprocessNoob)
+dim(beta_preprocessNoob)
+```
+
+Save normalized objects for reproducibility.
+```{r step07-save-normalized-results}
+saveRDS(preprocessNoob_results, file=file.path(rdsDir, "preprocessNoob_results.rds"))
+saveRDS(beta_preprocessNoob, file=file.path(rdsDir, "beta_preprocessNoob.rds"))
+saveRDS(M_preprocessNoob, file=file.path(rdsDir, "M_preprocessNoob.rds"))
+```
+
+Split normalized beta values by probe chemistry.
+```{r step07-split-normalized-beta-by-chemistry}
+beta_preprocessNoob_I <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfI$Name,]
+beta_preprocessNoob_II <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfII$Name,]
+```
+
+Calculate mean normalized beta values by probe chemistry.
+```{r step07-mean-normalized-beta-by-chemistry}
+mean_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, mean, na.rm=T)
+mean_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, mean, na.rm=T)
+```
+
+Estimate density of normalized beta means.
+```{r step07-density-normalized-beta-by-chemistry}
+d_mean_of_beta_preprocessNoob_I <- density(mean_of_beta_preprocessNoob_I, na.rm=T)
+d_mean_of_beta_preprocessNoob_II <- density(mean_of_beta_preprocessNoob_II, na.rm=T)
+```
+
+Calculate and estimate density of normalized beta standard deviations.
+```{r step07-normalized-beta-sd-by-chemistry}
+sd_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, sd, na.rm=T)
+sd_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, sd, na.rm=T)
+
+d_sd_of_beta_preprocessNoob_I <- density(sd_of_beta_preprocessNoob_I, na.rm=T)
+d_sd_of_beta_preprocessNoob_II <- density(sd_of_beta_preprocessNoob_II, na.rm=T)
+```
+
+Define colors for the raw and normalized beta boxplots.
+```{r step07-define-boxplot-colors}
+pheno <- data.frame(pData(RGset))
+pheno$Group
+
+boxplot_col <- c(CTRL = "blue", DIS = "red")[as.character(pheno$Group)]
+boxplot_col
+```
+
+Compare raw and normalized beta values using plots.
+```{r step07-compare-beta-chemistry, message=FALSE, warning=FALSE}
+# Plot raw and normalized beta-value comparisons
+par(mfrow = c(2, 3), mar = c(4.5, 4.5, 3, 1), oma = c(1, 1, 1, 5))
+
+plot(d_mean_of_beta_I, col = "blue", main = "raw beta", xlim = c(0, 1), ylim = c(0, 5))
+lines(d_mean_of_beta_II, col="red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+plot(d_sd_of_beta_I, col="blue", main="raw sd", xlim=c(0,0.6), ylim=c(0,60))
+lines(d_sd_of_beta_II, col = "red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+boxplot(beta, ylim = c(0, 1), col = boxplot_col, main = "raw beta", names=FALSE)
+axis( 1, at = seq_len(ncol(beta)), labels = seq_len(ncol(beta)), cex.axis = 0.8)
+legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue", "red"), bty = "n", cex = 0.8, xpd = NA)
+
+plot(d_mean_of_beta_preprocessNoob_I, col="blue", main="preprocessNoob beta", xlim=c(0,1), ylim=c(0,5))
+lines(d_mean_of_beta_preprocessNoob_II, col = "red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+plot(d_sd_of_beta_preprocessNoob_I, col="blue", main="preprocessNoob sd", xlim=c(0,0.6), ylim=c(0,60))
+lines(d_sd_of_beta_preprocessNoob_II, col = "red")
+legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+
+boxplot(beta_preprocessNoob, ylim = c(0, 1), col = boxplot_col, main = "preprocessNoob beta", names=FALSE)
+axis( 1, at = seq_len(ncol(beta_preprocessNoob)), labels = seq_len(ncol(beta_preprocessNoob)), cex.axis = 0.8)
+legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue", "red"), bty = "n", cex = 0.8, xpd = NA)
+```
+
+**Interpretation:** In the density plots, blue lines represent Type I probes and red lines represent Type II probes, while in the boxplots blue boxes represent CTRL samples and red boxes represent DIS samples. After normalization with `preprocessNoob`, the global beta-value distributions remained within the expected 0–1 range and preserved the typical bimodal methylation pattern. Type I and Type II probes still showed different density profiles, with Type I probes showing stronger peaks toward the unmethylated and highly methylated extremes, whereas Type II probes were shifted toward more intermediate beta values. The standard deviation density plots showed higher variability for Type II probes than for Type I probes.
+After normalization, the SD distribution changed slightly, suggesting that preprocessNoob modified part of the technical variability while preserving the overall beta-value structure.
 
 # Step 08. PCA on Normalized Beta Values
 
