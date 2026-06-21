@@ -422,14 +422,238 @@ dev.off()
 ### STEP 08: PCA on normalized beta values
 ###############################################################################
 
+# Load normalized beta values if they are not already in memory
+beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
+load("results/rds/RGset_Report.RData")
 
+# Extract sample information from RGset
+sample_info <- data.frame(pData(RGset))
+
+# Run PCA on normalized beta values
+pca_results <- prcomp(t(beta_preprocessNoob), scale. = TRUE)
+
+# Calculate the proportion of variance explained by each component
+pca_var <- pca_results$sdev^2
+pca_var_explained <- pca_var / sum(pca_var)
+
+## Create Scree Plot
+png(
+  "results/figures/step08_PCA_ScreePlot.png",
+  width = 1200,
+  height = 800
+)
+
+bp <- barplot(
+  pca_var_explained[1:8],
+  names.arg = paste0("PC", 1:8),
+  ylim = c(0, 0.5),
+  main = "Variance Explained by Principal Components",
+  xlab = "Principal Components",
+  ylab = "Proportion of Variance Explained"
+)
+
+text(
+  bp,
+  pca_var_explained[1:8],
+  labels = paste0(round(pca_var_explained[1:8] * 100, 1), "%"),
+  pos = 3,
+  cex = 0.8
+)
+
+dev.off()
+
+## Create PCA plot colored by disease group
+png(
+  "results/figures/step08_PCA_Group.png",
+  width = 1200,
+  height = 800
+)
+
+plot(
+  pca_results$x[,1],
+  pca_results$x[,2],
+  col = as.factor(sample_info$Group),
+  pch = 17,
+  cex = 1.5,
+  xlab = paste0(
+    "PC1 (",
+    round(pca_var_explained[1] * 100, 1),
+    "%)"
+  ),
+  ylab = paste0(
+    "PC2 (",
+    round(pca_var_explained[2] * 100, 1),
+    "%)"
+  ),
+  main = "PCA of Normalized Beta Values by Group"
+)
+
+text(
+  pca_results$x[,1],
+  pca_results$x[,2],
+  labels = sample_info$SampleID,
+  pos = 3,
+  cex = 0.8
+)
+
+legend(
+  "topright",
+  legend = levels(as.factor(sample_info$Group)),
+  col = 1:length(levels(as.factor(sample_info$Group))),
+  pch = 17
+)
+
+dev.off()
+
+## PCA colored by sex to check whether samples cluster according to gender
+sample_info$Sex <- as.factor(sample_info$Sex)
+
+png(
+  "results/figures/step08_PCA_by_Sex.png",
+  width = 1200,
+  height = 800
+)
+
+plot(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  col = sample_info$Sex,
+  pch = 17,
+  cex = 1.5,
+  xlab = paste0(
+    "PC1 (",
+    round(pca_var_explained[1] * 100, digits = 1),
+    "%)"
+  ),
+  ylab = paste0(
+    "PC2 (",
+    round(pca_var_explained[2] * 100, digits = 1),
+    "%)"
+  ),
+  main = "PCA of Normalized Beta Values by Sex"
+)
+
+text(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  labels = sample_info$SampleID,
+  pos = 3,
+  cex = 0.8
+)
+
+legend(
+  "topright",
+  legend = levels(sample_info$Sex),
+  col = seq_along(levels(sample_info$Sex)),
+  pch = 17
+)
+
+dev.off()
+
+## PCA colored by Sentrix_ID (batch)
+
+sample_info$Slide <- as.factor(sample_info$Slide)
+
+png(
+  "results/figures/step08_PCA_by_SentrixID.png",
+  width = 1200,
+  height = 800
+)
+
+plot(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  col = sample_info$Slide,
+  pch = 17,
+  cex = 1.5,
+  xlab = paste0("PC1 (", round(pca_var_explained[1] * 100, 1), "%)"),
+  ylab = paste0("PC2 (", round(pca_var_explained[2] * 100, 1), "%)"),
+  main = "PCA of Normalized Beta Values by Sentrix_ID"
+)
+
+text(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  labels = sample_info$SampleID,
+  pos = 3,
+  cex = 0.8
+)
+
+legend(
+  "topright",
+  legend = levels(sample_info$Slide),
+  col = seq_along(levels(sample_info$Slide)),
+  pch = 17
+)
+
+dev.off()
 
 ###############################################################################
 ### STEP 09: differential methylation analysis using t-test
 ###############################################################################
 ## Team 1 differential methylation test: t-test.
 
+# Load the RGset object generated in Step 1
+load(
+  "results/rds/RGset_Report.RData"
+)
 
+# Load the normalized beta values generated in Step 7
+beta_preprocessNoob <- readRDS(
+  "results/rds/beta_preprocessNoob.rds"
+)
+
+# Extract sample information from RGset
+sample_info <- data.frame(
+  pData(RGset)
+)
+
+# Use simpler names for the analysis
+beta_matrix <- beta_preprocessNoob
+sample_data <- sample_info
+
+# Identify CTRL and DIS samples
+control_samples <- sample_data$Group == "CTRL"
+disease_samples <- sample_data$Group == "DIS"
+
+# Calculate the mean beta value for each probe in the CTRL group
+mean_ctrl <- rowMeans(
+  beta_matrix[, control_samples]
+)
+
+# Calculate the mean beta value for each probe in the DIS group
+mean_dis <- rowMeans(
+  beta_matrix[, disease_samples]
+)
+
+# Calculate the methylation difference between the two groups
+delta_beta <- mean_dis - mean_ctrl
+
+# Perform a t-test for each probe and collect the p-values
+p_values <- apply(
+  beta_matrix,
+  1,
+  function(probe_values) {
+    t.test(
+      probe_values[control_samples],
+      probe_values[disease_samples])$p.value}
+)
+
+# Create a table containing the differential methylation results
+t_test_results <- data.frame(
+  ProbeID = rownames(beta_matrix),
+  Mean_CTRL = mean_ctrl,
+  Mean_DIS = mean_dis,
+  Delta_Beta = delta_beta,
+  P_Value = p_values
+)
+
+# Save the results for the next step of the pipeline
+write.csv(
+  t_test_results,
+  "results/tables/step09_t_test_results.csv",
+  row.names = FALSE
+)
 
 ###############################################################################
 ### STEP 10: multiple testing correction
