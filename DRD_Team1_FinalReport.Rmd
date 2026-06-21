@@ -550,11 +550,6 @@ legend(
 **Interpretation**: The CTRL (black) and DIS (pink) samples do not separate cleanly along PC1 or PC2. Samples from both groups are intermixed across the plot space. This suggests that disease status alone is not the dominant driver of global methylation variance — other sources of variation (sex, batch) likely contribute more to the top PCs.
 
 ## PCA Colored by Sex
-<<<<<<< HEAD
-=======
-**interpretation: ** Male samples (pink) and Female samples (black) show a partial separation, particularly along PC1. However, male and female samples do overlap in the central cluster, so sex is not entirely driving PC1.
-##Sex is often a major source of variance in methylation due to the X and Y chromosomes; if your differential methylation analysis doesn't account for this, sex could potentially act as a covariate in downstream differential methylation analysis to avoid false positives 
->>>>>>> 594e89ae313852fc8f2cc84a1b7c0b8fda825f7d
 
 ```{r pca-sex, fig.width=8, fig.height=6}
 sample_info$Sex <- as.factor(sample_info$Sex)
