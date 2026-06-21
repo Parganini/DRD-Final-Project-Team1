@@ -472,20 +472,21 @@ load("results/rds/RGset_Report.RData")
 sample_info <- data.frame(pData(RGset))
 ```
 
-##Perform PCA 
+## Perform PCA 
 ```{r pca-analysis}
 #Run PCA on normalized beta values
-pca_resulst<-prcomp(t(beta_preprocessNoob), scale.=TRUE)
+pca_results <- prcomp(t(beta_preprocessNoob), scale.=TRUE)
 #Variance explained
 pca_var <- pca_results$sdev^2
 pca_var_explained <- pca_var / sum(pca_var)
 ```
+
 ## Scree Plot
-**interpretation**: PC1 dominates with 42.7% of variance, followed by PC2 at 20.4%. Together they capture ~63% of total variance, which is reasonable for an 8-sample methylation dataset. The steep drop after PC2 and gradual tapering afterward suggests the major sources of biological/technical variation are captured in the first two components.
+**Interpretation**: PC1 dominates with 42.7% of variance, followed by PC2 at 20.4%. Together they capture ~63% of total variance, which is reasonable for an 8-sample methylation dataset. The steep drop after PC2 and gradual tapering afterward suggests the major sources of biological/technical variation are captured in the first two components.
 
 
 ```{r scree-plot, fig.width=8, fig.height=6}
-barplot(
+bp <- barplot(
   pca_var_explained[1:8],
   names.arg = paste0("PC", 1:8),
   ylim = c(0, 0.5),
@@ -494,7 +495,7 @@ barplot(
   ylab = "Proportion of Variance Explained"
 )
 text(
-  x = seq_along(pca_var_explained[1:8]),
+  bp,
   y = pca_var_explained[1:8],
   labels = paste0(round(pca_var_explained[1:8] * 100, 1), "%"),
   pos = 3,
@@ -503,15 +504,20 @@ text(
 ```
 
 ## PCA Colored by Disease Group
-**interpretation**: The CTRL (black) and DIS (pink) samples do not separate cleanly along PC1 or PC2. Samples from both groups are intermixed across the plot space. This suggests that disease status alone is not the dominant driver of global methylation variance — other sources of variation (sex, batch) likely contribute more to the top PCs.
 
 ```{r pca-group, fig.width=8, fig.height=6}
+
+xlim_pca <- range(pca_results$x[, "PC1"]) + c(-50, 100)
+ylim_pca <- range(pca_results$x[, "PC2"]) + c(-50, 50)
+
 plot(
   pca_results$x[,1],
   pca_results$x[,2],
   col = as.factor(sample_info$Group),
   pch = 17,
   cex = 1.5,
+  xlim = xlim_pca,
+  ylim = ylim_pca,
   xlab = paste0(
     "PC1 (",
     round(pca_var_explained[1] * 100, 1),
@@ -540,9 +546,10 @@ legend(
   pch = 17
 )
 ```
+
+**Interpretation**: The CTRL (black) and DIS (pink) samples do not separate cleanly along PC1 or PC2. Samples from both groups are intermixed across the plot space. This suggests that disease status alone is not the dominant driver of global methylation variance — other sources of variation (sex, batch) likely contribute more to the top PCs.
+
 ## PCA Colored by Sex
-**interpretation: ** Male samples (pink) and Female samples (black) show a partial separation, particularly along PC1. Notably, the two extreme outliers (GSM5319603 and GSM5319609) are both male, which could partially explain their position. However, male and female samples do overlap in the central cluster, so sex is not entirely driving PC1.
-##Sex is often a major source of variance in methylation due to the X and Y chromosomes; if your differential methylation analysis doesn't account for this, sex could potentially act as a covariate in downstream differential methylation analysis to avoid false positives 
 
 ```{r pca-sex, fig.width=8, fig.height=6}
 sample_info$Sex <- as.factor(sample_info$Sex)
@@ -553,6 +560,8 @@ plot(
   col = sample_info$Sex,
   pch = 17,
   cex = 1.5,
+  xlim = xlim_pca,
+  ylim = ylim_pca,
   xlab = paste0(
     "PC1 (",
     round(pca_var_explained[1] * 100, 1),
@@ -582,10 +591,12 @@ legend(
 )
 ```
 
+**Interpretation**: Male samples (pink) and Female samples (black) show a partial separation, particularly along PC1. However, male and female samples do overlap in the central cluster, so sex is not entirely driving PC1.
+Sex is often a major source of variance in methylation due to the X and Y chromosomes; if your differential methylation analysis doesn't account for this, sex could potentially act as a covariate in downstream differential methylation analysis to avoid false positives 
+
+**Suggested Interpretation:** Female samples are shown in black and male samples are shown in pink/red. The PCA does not show a complete separation between male and female samples. Some samples are more distant from the central cluster, but sex alone does not fully explain PC1 and PC2. Since sex can influence methylation patterns, especially through sex chromosomes, it should be considered when interpreting downstream differential methylation results.
 
 ## PCA Colored by Batch (Slide)
-**interpretation**: 
-##Five different slides (Sentrix IDs) are represented by different colors. There is no obvious clustering by slide, meaning batch effects from different arrays are not a major confounding factor in this dataset. Samples from different slides are spread across the PCA space without grouping, which is a positive quality control finding.
 
 ```{r pca-slide, fig.width=8, fig.height=6}
 sample_info$Slide <- as.factor(sample_info$Slide)
@@ -596,6 +607,8 @@ plot(
   col = sample_info$Slide,
   pch = 17,
   cex = 1.5,
+  xlim = xlim_pca,
+  ylim = ylim_pca,
   xlab = paste0(
     "PC1 (",
     round(pca_var_explained[1] * 100, 1),
@@ -624,8 +637,16 @@ legend(
   pch = 17
 )
 ```
+
+**Interpretation**: 
+Five different slides (Sentrix IDs) are represented by different colors. There is no obvious clustering by slide, meaning batch effects from different arrays are not a major confounding factor in this dataset. Samples from different slides are spread across the PCA space without grouping, which is a positive quality control finding.
+
+**Suggested Interpretation:** Five different slides/Sentrix IDs are represented. No single slide clearly explains all variation in PC1 and PC2, although samples from slide 3999547017 appear close to each other in the lower-left region. Because there are several slide IDs for only eight samples, batch effects cannot be ruled out completely, but slide does not appear to be the dominant source of variation in this PCA.
+
 # Step 09. Differential Methylation Analysis with t-test
-##differential methylation analysis identifies CpG-specific changes associated with disease status whereas t-tests identify candidate biomarkers.
+
+Differential methylation analysis identifies CpG-specific changes associated with disease status. Here, probe-wise t-tests compare normalized beta values between CTRL and DIS samples.
+
 ## Load Data
 
 ```{r load-dm-data}
@@ -693,9 +714,14 @@ t_test_results <- data.frame(
 head(t_test_results)
 ```
 
+**Interpretation**: 
+The t-test results show modest delta beta values (ranging roughly from -0.20 to +0.16) with no probe reaching statistical significance at this stage (all p-values > 0.05), which is expected before multiple testing correction and consistent with the small sample size of 8 individuals.
+Although some probes exhibit biologically meaningful delta beta values (|Δβ| > 0.1) alongside nominal p-values < 0.05, these findings cannot be considered statistically reliable without multiple testing correction. Given that ~450,000 CpG sites are tested simultaneously, applying a threshold of p < 0.05 would be expected to yield approximately 22,500 false positives by chance alone, necessitating correction methods
+
+**Suggested Interpretation:** The probe-wise t-test produced results for 485,512 CpG probes. Using nominal p-values, 11,928 probes have `P_Value <= 0.05`; however, these results should be considered preliminary because multiple testing correction has not yet been applied. Since hundreds of thousands of CpG sites are tested simultaneously, nominally significant probes may include false positives, so Bonferroni and Benjamini-Hochberg correction will be needed in Step 10.
+
 ## Save Results
-##The t-test results show modest delta beta values (ranging roughly from -0.20 to +0.16) with no probe reaching statistical significance at this stage (all p-values > 0.05), which is expected before multiple testing correction and consistent with the small sample size of 8 individuals.
-##Although some probes exhibit biologically meaningful delta beta values (|Δβ| > 0.1) alongside nominal p-values < 0.05, these findings cannot be considered statistically reliable without multiple testing correction. Given that ~450,000 CpG sites are tested simultaneously, applying a threshold of p < 0.05 would be expected to yield approximately 22,500 false positives by chance alone, necessitating correction methods
+
 ```{r save-results}
 write.csv(
   t_test_results,
