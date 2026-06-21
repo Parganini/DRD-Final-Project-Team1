@@ -460,14 +460,249 @@ legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue",
 **Interpretation:** In the density plots, blue lines represent Type I probes and red lines represent Type II probes, while in the boxplots blue boxes represent CTRL samples and red boxes represent DIS samples. After normalization with `preprocessNoob`, the global beta-value distributions remained within the expected 0–1 range and preserved the typical bimodal methylation pattern. Type I and Type II probes still showed different density profiles, with Type I probes showing stronger peaks toward the unmethylated and highly methylated extremes, whereas Type II probes were shifted toward more intermediate beta values. The standard deviation density plots showed higher variability for Type II probes than for Type I probes.
 After normalization, the SD distribution changed slightly, suggesting that preprocessNoob modified part of the technical variability while preserving the overall beta-value structure.
 
-# Step 08. PCA on Normalized Beta Values
+# Step 08. PCA on Normalized Beta Values: PCA evaluates global structure and potential confounders
+```{r load-data, message=FALSE, warning=FALSE}
+#load normalized beta values 
+beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
+
+#load RGset object 
+load("results/rds/RGset_Report.RData")
+
+# Extract sample information
+sample_info <- data.frame(pData(RGset))
+```
+
+##Perform PCA 
+```{r pca-analysis}
+#Run PCA on normalized beta values
+pca_resulst<-prcomp(t(beta_preprocessNoob), scale.=TRUE)
+#Variance explained
+pca_var <- pca_results$sdev^2
+pca_var_explained <- pca_var / sum(pca_var)
+```
+## Scree Plot
+**interpretation**: PC1 dominates with 42.7% of variance, followed by PC2 at 20.4%. Together they capture ~63% of total variance, which is reasonable for an 8-sample methylation dataset. The steep drop after PC2 and gradual tapering afterward suggests the major sources of biological/technical variation are captured in the first two components.
 
 
+```{r scree-plot, fig.width=8, fig.height=6}
+barplot(
+  pca_var_explained[1:8],
+  names.arg = paste0("PC", 1:8),
+  ylim = c(0, 0.5),
+  main = "Variance Explained by Principal Components",
+  xlab = "Principal Components",
+  ylab = "Proportion of Variance Explained"
+)
+text(
+  x = seq_along(pca_var_explained[1:8]),
+  y = pca_var_explained[1:8],
+  labels = paste0(round(pca_var_explained[1:8] * 100, 1), "%"),
+  pos = 3,
+  cex = 0.8
+)
+```
 
+## PCA Colored by Disease Group
+**interpretation**: The CTRL (black) and DIS (pink) samples do not separate cleanly along PC1 or PC2. Samples from both groups are intermixed across the plot space. This suggests that disease status alone is not the dominant driver of global methylation variance — other sources of variation (sex, batch) likely contribute more to the top PCs.
+
+```{r pca-group, fig.width=8, fig.height=6}
+plot(
+  pca_results$x[,1],
+  pca_results$x[,2],
+  col = as.factor(sample_info$Group),
+  pch = 17,
+  cex = 1.5,
+  xlab = paste0(
+    "PC1 (",
+    round(pca_var_explained[1] * 100, 1),
+    "%)"
+  ),
+  ylab = paste0(
+    "PC2 (",
+    round(pca_var_explained[2] * 100, 1),
+    "%)"
+  ),
+  main = "PCA of Normalized Beta Values by Group"
+)
+
+text(
+  pca_results$x[,1],
+  pca_results$x[,2],
+  labels = sample_info$SampleID,
+  pos = 3,
+  cex = 0.8
+)
+
+legend(
+  "topright",
+  legend = levels(as.factor(sample_info$Group)),
+  col = seq_along(levels(as.factor(sample_info$Group))),
+  pch = 17
+)
+```
+## PCA Colored by Sex
+**interpretation: ** Male samples (pink) and Female samples (black) show a partial separation, particularly along PC1. Notably, the two extreme outliers (GSM5319603 and GSM5319609) are both male, which could partially explain their position. However, male and female samples do overlap in the central cluster, so sex is not entirely driving PC1.
+##Sex is often a major source of variance in methylation due to the X and Y chromosomes; if your differential methylation analysis doesn't account for this, sex could potentially act as a covariate in downstream differential methylation analysis to avoid false positives 
+
+```{r pca-sex, fig.width=8, fig.height=6}
+sample_info$Sex <- as.factor(sample_info$Sex)
+
+plot(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  col = sample_info$Sex,
+  pch = 17,
+  cex = 1.5,
+  xlab = paste0(
+    "PC1 (",
+    round(pca_var_explained[1] * 100, 1),
+    "%)"
+  ),
+  ylab = paste0(
+    "PC2 (",
+    round(pca_var_explained[2] * 100, 1),
+    "%)"
+  ),
+  main = "PCA of Normalized Beta Values by Sex"
+)
+
+text(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  labels = sample_info$SampleID,
+  pos = 3,
+  cex = 0.8
+)
+
+legend(
+  "topright",
+  legend = levels(sample_info$Sex),
+  col = seq_along(levels(sample_info$Sex)),
+  pch = 17
+)
+```
+
+
+## PCA Colored by Batch (Slide)
+**interpretation**: 
+##Five different slides (Sentrix IDs) are represented by different colors. There is no obvious clustering by slide, meaning batch effects from different arrays are not a major confounding factor in this dataset. Samples from different slides are spread across the PCA space without grouping, which is a positive quality control finding.
+
+```{r pca-slide, fig.width=8, fig.height=6}
+sample_info$Slide <- as.factor(sample_info$Slide)
+
+plot(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  col = sample_info$Slide,
+  pch = 17,
+  cex = 1.5,
+  xlab = paste0(
+    "PC1 (",
+    round(pca_var_explained[1] * 100, 1),
+    "%)"
+  ),
+  ylab = paste0(
+    "PC2 (",
+    round(pca_var_explained[2] * 100, 1),
+    "%)"
+  ),
+  main = "PCA of Normalized Beta Values by Sentrix_ID"
+)
+
+text(
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  labels = sample_info$SampleID,
+  pos = 3,
+  cex = 0.8
+)
+
+legend(
+  "topright",
+  legend = levels(sample_info$Slide),
+  col = seq_along(levels(sample_info$Slide)),
+  pch = 17
+)
+```
 # Step 09. Differential Methylation Analysis with t-test
+##differential methylation analysis identifies CpG-specific changes associated with disease status whereas t-tests identify candidate biomarkers.
+## Load Data
 
+```{r load-dm-data}
+load("results/rds/RGset_Report.RData")
 
+beta_preprocessNoob <- readRDS(
+  "results/rds/beta_preprocessNoob.rds"
+)
 
+sample_info <- data.frame(
+  pData(RGset)
+)
+
+beta_matrix <- beta_preprocessNoob
+sample_data <- sample_info
+```
+
+## Define Sample Groups: control and disease
+
+```{r define-groups}
+control_samples <- sample_data$Group == "CTRL"
+disease_samples <- sample_data$Group == "DIS"
+```
+
+## Calculate Mean Beta Values
+
+```{r mean-beta}
+mean_ctrl <- rowMeans(
+  beta_matrix[, control_samples]
+)
+
+mean_dis <- rowMeans(
+  beta_matrix[, disease_samples]
+)
+
+delta_beta <- mean_dis - mean_ctrl
+```
+
+## Perform Probe-wise t-Tests
+
+```{r t-tests}
+p_values <- apply(
+  beta_matrix,
+  1,
+  function(probe_values) {
+    t.test(
+      probe_values[control_samples],
+      probe_values[disease_samples]
+    )$p.value
+  }
+)
+```
+
+## Create Results Table
+
+```{r results-table}
+t_test_results <- data.frame(
+  ProbeID = rownames(beta_matrix),
+  Mean_CTRL = mean_ctrl,
+  Mean_DIS = mean_dis,
+  Delta_Beta = delta_beta,
+  P_Value = p_values
+)
+
+head(t_test_results)
+```
+
+## Save Results
+##The t-test results show modest delta beta values (ranging roughly from -0.20 to +0.16) with no probe reaching statistical significance at this stage (all p-values > 0.05), which is expected before multiple testing correction and consistent with the small sample size of 8 individuals.
+##Although some probes exhibit biologically meaningful delta beta values (|Δβ| > 0.1) alongside nominal p-values < 0.05, these findings cannot be considered statistically reliable without multiple testing correction. Given that ~450,000 CpG sites are tested simultaneously, applying a threshold of p < 0.05 would be expected to yield approximately 22,500 false positives by chance alone, necessitating correction methods
+```{r save-results}
+write.csv(
+  t_test_results,
+  "results/tables/step09_t_test_results.csv",
+  row.names = FALSE
+)
+```
 # Step 10. Multiple Testing Correction
 
 
