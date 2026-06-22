@@ -674,13 +674,13 @@ t_test_results$P_FDR <- p.adjust(t_test_results$P_Value, method = "BH")
 alpha <- 0.05
 
 # Count significant probes
-sig_nominal <- sum(t_test_results$P_Value < alpha, na.rm = TRUE)
-sig_bonferroni <- sum(t_test_results$P_Bonferroni < alpha, na.rm = TRUE)
-sig_fdr <- sum(t_test_results$P_FDR < alpha, na.rm = TRUE)
+sig_nominal <- sum(t_test_results$P_Value <= alpha, na.rm = TRUE)
+sig_bonferroni <- sum(t_test_results$P_Bonferroni <= alpha, na.rm = TRUE)
+sig_fdr <- sum(t_test_results$P_FDR <= alpha, na.rm = TRUE)
 
-cat("Significant probes (Nominal P < 0.05):", sig_nominal, "\n")
-cat("Significant probes (Bonferroni < 0.05):", sig_bonferroni, "\n")
-cat("Significant probes (BH/FDR < 0.05):", sig_fdr, "\n")
+cat("Significant probes (Nominal P <= 0.05):", sig_nominal, "\n")
+cat("Significant probes (Bonferroni <= 0.05):", sig_bonferroni, "\n")
+cat("Significant probes (BH/FDR <= 0.05):", sig_fdr, "\n")
 
 # Save the adjusted table
 write.csv(t_test_results, "results/tables/step10_t_test_results_adjusted.csv", row.names = FALSE)
@@ -707,9 +707,9 @@ plot(
   xlim = c(-max(abs(t_test_results$Delta_Beta), na.rm=TRUE), max(abs(t_test_results$Delta_Beta), na.rm=TRUE))
 )
 
-# Highlight significant targets (|Delta Beta| > 0.1 & p < 0.05)
-hyper <- which(t_test_results$Delta_Beta > 0.1 & t_test_results$P_Value < alpha)
-hypo <- which(t_test_results$Delta_Beta < -0.1 & t_test_results$P_Value < alpha)
+# Highlight significant targets (|Delta Beta| > 0.1 & p <= 0.05)
+hyper <- which(t_test_results$Delta_Beta > 0.1 & t_test_results$P_Value <= alpha)
+hypo <- which(t_test_results$Delta_Beta < -0.1 & t_test_results$P_Value <= alpha)
 
 points(t_test_results$Delta_Beta[hyper], -log10(t_test_results$P_Value)[hyper], col = "red", pch = 16, cex = 0.6)
 points(t_test_results$Delta_Beta[hypo], -log10(t_test_results$P_Value)[hypo], col = "blue", pch = 16, cex = 0.6)
@@ -797,6 +797,3 @@ legend("topright",
 dev.off()
 
 cat("\n--- Pipeline Execution Complete ---\n")
-
-
-

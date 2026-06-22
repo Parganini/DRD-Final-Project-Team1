@@ -591,10 +591,7 @@ legend(
 )
 ```
 
-**Interpretation**: Male samples (pink) and Female samples (black) show a partial separation, particularly along PC1. However, male and female samples do overlap in the central cluster, so sex is not entirely driving PC1.
-Sex is often a major source of variance in methylation due to the X and Y chromosomes; if your differential methylation analysis doesn't account for this, sex could potentially act as a covariate in downstream differential methylation analysis to avoid false positives 
-
-**Suggested Interpretation:** Female samples are shown in black and male samples are shown in pink/red. The PCA does not show a complete separation between male and female samples. Some samples are more distant from the central cluster, but sex alone does not fully explain PC1 and PC2. Since sex can influence methylation patterns, especially through sex chromosomes, it should be considered when interpreting downstream differential methylation results.
+**Interpretation:** Female samples are shown in black and male samples are shown in pink/red. The PCA does not show a complete separation between male and female samples. Some samples are more distant from the central cluster, but sex alone does not fully explain PC1 and PC2. Since sex can influence methylation patterns, especially through sex chromosomes, it should be considered when interpreting downstream differential methylation results.
 
 ## PCA Colored by Batch (Slide)
 
@@ -638,10 +635,7 @@ legend(
 )
 ```
 
-**Interpretation**: 
-Five different slides (Sentrix IDs) are represented by different colors. There is no obvious clustering by slide, meaning batch effects from different arrays are not a major confounding factor in this dataset. Samples from different slides are spread across the PCA space without grouping, which is a positive quality control finding.
-
-**Suggested Interpretation:** Five different slides/Sentrix IDs are represented. No single slide clearly explains all variation in PC1 and PC2, although samples from slide 3999547017 appear close to each other in the lower-left region. Because there are several slide IDs for only eight samples, batch effects cannot be ruled out completely, but slide does not appear to be the dominant source of variation in this PCA.
+**Interpretation:** Five different slides/Sentrix IDs are represented. No single slide clearly explains all variation in PC1 and PC2, although samples from slide 3999547017 appear close to each other in the lower-left region. Because there are several slide IDs for only eight samples, batch effects cannot be ruled out completely, but slide does not appear to be the dominant source of variation in this PCA.
 
 # Step 09. Differential Methylation Analysis with t-test
 
@@ -714,11 +708,7 @@ t_test_results <- data.frame(
 head(t_test_results)
 ```
 
-**Interpretation**: 
-The t-test results show modest delta beta values (ranging roughly from -0.20 to +0.16) with no probe reaching statistical significance at this stage (all p-values > 0.05), which is expected before multiple testing correction and consistent with the small sample size of 8 individuals.
-Although some probes exhibit biologically meaningful delta beta values (|Δβ| > 0.1) alongside nominal p-values < 0.05, these findings cannot be considered statistically reliable without multiple testing correction. Given that ~450,000 CpG sites are tested simultaneously, applying a threshold of p < 0.05 would be expected to yield approximately 22,500 false positives by chance alone, necessitating correction methods
-
-**Suggested Interpretation:** The probe-wise t-test produced results for 485,512 CpG probes. Using nominal p-values, 11,928 probes have `P_Value <= 0.05`; however, these results should be considered preliminary because multiple testing correction has not yet been applied. Since hundreds of thousands of CpG sites are tested simultaneously, nominally significant probes may include false positives, so Bonferroni and Benjamini-Hochberg correction will be needed in Step 10.
+**Interpretation:** The probe-wise t-test produced results for 485,512 CpG probes. Using nominal p-values, 11,928 probes have `P_Value <= 0.05`; however, these results should be considered preliminary because multiple testing correction has not yet been applied. Since hundreds of thousands of CpG sites are tested simultaneously, nominally significant probes may include false positives, so Bonferroni and Benjamini-Hochberg correction will be needed in Step 10.
 
 ## Save Results
 
@@ -729,11 +719,12 @@ write.csv(
   row.names = FALSE
 )
 ```
-# Step 10. Multiple Testing Correction
 
-In Step 09, we performed roughly 450,000 independent t-tests. Using a nominal p-value threshold of 0.05 without adjustment would lead to thousands of false positives. To control for this, we applied two multiple testing correction methods: Bonferroni (controlling the Family-Wise Error Rate) and Benjamini-Hochberg (controlling the False Discovery Rate).
+## Step 10. Multiple Testing Correction
 
-```{r step10-multiple-testing}
+In Step 09, we performed independent t-tests across approximately 450,000 CpG probes to identify differentially methylated probes between the Control (CTRL) and Disease (DIS) groups. Using a nominal p-value threshold of 0.05 without adjustment would lead to tens of thousands of false positives due to the sheer volume of tests being conducted. To control for this, we applied two multiple testing correction methods: Bonferroni (which strictly controls the Family-Wise Error Rate) and Benjamini-Hochberg (which controls the False Discovery Rate, or FDR).
+
+```{r step10-multiple-testing, message=FALSE, warning=FALSE}
 # Load the t-test results from Step 09
 t_test_results <- read.csv("results/tables/step09_t_test_results.csv")
 
@@ -747,9 +738,9 @@ t_test_results$P_FDR <- p.adjust(t_test_results$P_Value, method = "BH")
 alpha <- 0.05
 
 # Count the number of significant probes for each method
-sig_nominal <- sum(t_test_results$P_Value < alpha, na.rm = TRUE)
-sig_bonferroni <- sum(t_test_results$P_Bonferroni < alpha, na.rm = TRUE)
-sig_fdr <- sum(t_test_results$P_FDR < alpha, na.rm = TRUE)
+sig_nominal <- sum(t_test_results$P_Value <= alpha, na.rm = TRUE)
+sig_bonferroni <- sum(t_test_results$P_Bonferroni <= alpha, na.rm = TRUE)
+sig_fdr <- sum(t_test_results$P_FDR <= alpha, na.rm = TRUE)
 
 # Create a summary table to answer the pipeline questions
 correction_summary <- data.frame(
@@ -760,108 +751,119 @@ correction_summary <- data.frame(
 print(correction_summary)
 
 # Save the updated dataframe containing adjusted p-values for Steps 11 and 12
-write.csv(
-  t_test_results, 
-  "results/tables/step10_t_test_results_adjusted.csv", 
-  row.names = FALSE
-)
+write.csv(t_test_results, "results/tables/step10_t_test_results_adjusted.csv", row.names = FALSE)
+```
 
+### **Interpretation and Discussion (Step 10)**
+As demonstrated by the output table, we identify thousands of probes with a nominal p-value below 0.05 before applying any correction. However, after applying the rigorous Bonferroni and Benjamini-Hochberg corrections, zero probes remain significant at the 0.05 threshold. 
 
-# Step 11. Volcano and Manhattan Plots
+This stark drop-off highlights a crucial concept in high-dimensional data analysis: while many probes appear significant initially, most of these results are likely due to chance when running 450,000 simultaneous tests. 
 
-In this step, we visualize the results of the differential methylation analysis. 
-The Volcano plot displays the biological magnitude of change (Delta Beta) against statistical significance. 
-The Manhattan plot distributes these p-values across the genomic coordinates to identify specific hotspots of differential methylation.
+Furthermore, the lack of genome-wide significant results post-correction could be attributed to a few biological and technical factors:
+* **Subtle Biological Effect:** The epigenetic differences between the CTRL and DIS groups might be highly localized or have very small effect sizes, making them hard to detect without a massive sample size.
+* **Normalization Limitations:** As we used `preprocessNoob`—which is considered a "light" background correction method—uncorrected technical noise or batch effects might be swamping the true biological signal. A more robust normalization approach, such as `preprocessQuantile` (which forces distributions to be identical across arrays), might yield more statistically significant probes post-correction.
 
-## Volcano Plot
+---
 
-```{r step11-volcano-plot, fig.width=8, fig.height=6}
-# Load the adjusted t-test results from Step 10
-t_test_results <- read.csv("results/tables/step10_t_test_results_adjusted.csv")
+## Step 11. Volcano and Manhattan Plots
 
-# Define significance threshold (FDR < 0.05)
-alpha <- 0.05
-sig_fdr <- t_test_results$P_FDR < alpha
+Because our stringent FDR correction eliminated our statistically significant probes, we must rely on nominal p-values combined with the biological magnitude of change (Delta Beta) to identify "suggestive" loci for further exploratory analysis. We visualize these results using Volcano and Manhattan plots.
 
-# Create a color vector: 
-# Grey for non-significant, Red for hypermethylated (FDR < 0.05 & Delta_Beta > 0)
-# Blue for hypomethylated (FDR < 0.05 & Delta_Beta < 0)
-point_colors <- rep("darkgray", nrow(t_test_results))
-point_colors[sig_fdr & t_test_results$Delta_Beta > 0] <- "firebrick"
-point_colors[sig_fdr & t_test_results$Delta_Beta < 0] <- "steelblue"
+### Volcano Plot
 
+The Volcano plot contrasts the biological effect size (x-axis, representing the Delta Beta or methylation difference) against statistical significance (y-axis, representing the negative log10 of the nominal p-value). We apply a threshold of a 10% methylation difference (|Delta Beta| > 0.1) alongside a nominal p-value < 0.05 to highlight biologically interesting probes.
+
+```{r step11-volcano-plot, fig.width=8, fig.height=6, message=FALSE, warning=FALSE}
 # Plot the Volcano Plot
 plot(
   x = t_test_results$Delta_Beta,
   y = -log10(t_test_results$P_Value),
   pch = 16,
   cex = 0.5,
-  col = point_colors,
-  xlab = expression(paste(Delta, " Beta (DIS - CTRL)")),
-  ylab = expression(paste("-log"[10], "(Nominal P-value)")),
+  col = "darkgray",
+  xlab = "Delta Beta (DIS - CTRL)",
+  ylab = "-log10(Nominal P-value)",
   main = "Volcano Plot of DNA Methylation",
   xlim = c(-max(abs(t_test_results$Delta_Beta), na.rm=TRUE), 
             max(abs(t_test_results$Delta_Beta), na.rm=TRUE))
 )
 
-# Add a horizontal line for the nominal p-value threshold of 0.05
+# Highlight significant targets (Nominal P <= 0.05 and |Delta Beta| > 0.1)
+hyper <- which(t_test_results$Delta_Beta > 0.1 & t_test_results$P_Value <= 0.05)
+hypo <- which(t_test_results$Delta_Beta < -0.1 & t_test_results$P_Value <= 0.05)
+
+points(t_test_results$Delta_Beta[hyper], -log10(t_test_results$P_Value)[hyper], col = "red", pch = 16, cex = 0.6)
+points(t_test_results$Delta_Beta[hypo], -log10(t_test_results$P_Value)[hypo], col = "blue", pch = 16, cex = 0.6)
+
+# Add horizontal and vertical lines for thresholds
 abline(h = -log10(0.05), col = "black", lty = 2)
+abline(v = c(-0.1, 0.1), col = "black", lty = 2)
 
 legend("topright", 
-       legend = c("Hypermethylated (FDR < 0.05)", "Hypomethylated (FDR < 0.05)", "Not Significant"),
-       col = c("firebrick", "steelblue", "darkgray"), 
-       pch = 16, cex = 0.8)
+       legend = c("Hypermethylated", "Hypomethylated"),
+       col = c("red", "blue", "darkgray"), 
+       pch = 16, cex = 0.8, bty="n")
+```
 
-# Load the normalized object to extract genomic coordinates
+**Interpretation:** The Volcano plot allows us to immediately spot probes that undergo severe hypermethylation (red dots, top right) or hypomethylation (blue dots, top left) in the disease state compared to the controls. While these may not survive FDR correction, loci showing a high Delta Beta are primary candidates for targeted validation studies, as large methylation swings are often biologically impactful regardless of array-wide statistical penalties.
+
+### Manhattan Plot
+
+The Manhattan plot maps our nominal p-values across the genomic coordinates (Chromosomes 1-22, X, and Y). This allows us to look for "hotspots"—specific genomic regions or chromosomes where differential methylation is clustered.
+
+```{r step11-manhattan-plot, fig.width=10, fig.height=6, message=FALSE, warning=FALSE}
+library(qqman)
+
+# Load the normalized object to extract genomic annotations
 preprocessNoob_results <- readRDS("results/rds/preprocessNoob_results.rds")
-
-# Map the data to the genome to get chromosome and positional data
-GRset <- mapToGenome(preprocessNoob_results)
+ann <- getAnnotation(preprocessNoob_results)
 
 # Extract locations into a dataframe
-locations <- as.data.frame(rowRanges(GRset))
-locations$ProbeID <- rownames(locations)
+locations <- data.frame(ProbeID = rownames(ann), CHR = ann$chr, MAPINFO = ann$pos)
 
 # Merge coordinates with our t-test results
 manhattan_data <- merge(t_test_results, locations, by = "ProbeID")
 
-# The qqman package requires chromosomes to be numeric (1-22, 23 for X, 24 for Y)
-manhattan_data$CHR <- gsub("chr", "", manhattan_data$seqnames)
+# Clean CHR column to be numeric for qqman (1-22, 23 for X, 24 for Y)
+manhattan_data$CHR <- gsub("chr", "", manhattan_data$CHR)
 manhattan_data$CHR[manhattan_data$CHR == "X"] <- 23
 manhattan_data$CHR[manhattan_data$CHR == "Y"] <- 24
 manhattan_data$CHR <- as.numeric(manhattan_data$CHR)
 
-# Clean up any unmapped or NA chromosomes before plotting
 manhattan_data <- manhattan_data[!is.na(manhattan_data$CHR) & !is.na(manhattan_data$P_Value), ]
 
 # Plot the Manhattan Plot
 manhattan(
   manhattan_data,
   chr = "CHR",
-  bp = "start",
+  bp = "MAPINFO",
   snp = "ProbeID",
   p = "P_Value",
   col = c("gray50", "gray80"),
   suggestiveline = FALSE, 
-  genomewideline = FALSE, # Disabled default GWAS lines as epigenomics uses different thresholds
+  genomewideline = FALSE,
   main = "Manhattan Plot of Epigenome-Wide Association",
-  ylab = expression(paste("-log"[10], "(Nominal P-value)"))
+  ylab = "-log10(Nominal P-value)"
 )
+```
 
-# Step 12. Heatmap of the Top 100 CpGs
+**Interpretation:** If differential methylation is randomly scattered due to technical noise, the Manhattan plot will look like a uniform band across all chromosomes. On the contrary, if the disease state strongly affects specific genes or genomic regions, therefore, we expect to see distinct vertical "towers" of highly significant points rising above the background.
 
-To visualize the methylation patterns of the most significantly altered loci, we generate a heatmap of the top 100 differentially methylated probes. Unsupervised hierarchical clustering is applied to both the probes (rows) and the samples (columns) to see if the samples group together by disease status based solely on these 100 CpG sites.
+---
 
-```{r step12-heatmap, fig.width=8, fig.height=8}
+## Step 12. Heatmap of the Top 100 CpGs
+
+To visually assess whether the disease signature is distinct from the control signature, we isolated the top 100 most significant probes (based on the lowest nominal p-values) and generated a heatmap. We applied unsupervised hierarchical clustering to both the probes (rows) and the samples (columns).
+
+```{r step12-heatmap, fig.width=8, fig.height=8, message=FALSE, warning=FALSE}
+library(gplots)
+
 # Load necessary data
-t_test_results <- read.csv("results/tables/step10_t_test_results_adjusted.csv")
 beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
 load("results/rds/RGset_Report.RData")
 pheno <- data.frame(pData(RGset))
 
 # Sort the results by the lowest nominal p-value to extract the top 100 probes
-# (Note: We use nominal p-value here to guarantee exactly 100 probes, 
-# in case fewer than 100 survive the strict FDR correction)
 top_100_results <- t_test_results[order(t_test_results$P_Value), ][1:100, ]
 top_100_probes <- top_100_results$ProbeID
 
@@ -871,29 +873,30 @@ beta_top100 <- beta_preprocessNoob[top_100_probes, ]
 # Define column colors based on sample group (CTRL vs DIS)
 group_colors <- ifelse(pheno$Group == "CTRL", "blue", "red")
 
-# Generate the heatmap
+# Generate the heatmap using complete linkage
 heatmap.2(
-  beta_top100,
+  as.matrix(beta_top100),
   main = "Top 100 Differentially Methylated CpGs",
-  trace = "none",              # Removes trace lines inside the heatmap
-  col = bluered(100),          # Standard diverging color palette
-  scale = "none",              # Beta values are strictly 0 to 1, no need to scale
-  dendrogram = "both",         # Cluster both probes (rows) and samples (columns)
-  ColSideColors = group_colors,# Color the columns by Group
-  margins = c(10, 5),          # Adjust margins so sample names fit
+  trace = "none",              
+  col = bluered(100),          
+  scale = "none",              
+  dendrogram = "both",         
+  ColSideColors = group_colors,
+  margins = c(10, 5),          
   cexCol = 0.8,
-  labRow = FALSE               # Hide row names (100 probe IDs will be too cluttered)
+  labRow = FALSE               
 )
 
 # Add a legend for the column side colors
 legend("topright", 
-       legend = c("CTRL", "DIS"), 
+       legend = levels(as.factor(pheno$Group)), 
        fill = c("blue", "red"), 
        border = FALSE, 
        bty = "n", 
        cex = 0.8)
+```
 
-
-# Conclusions
-
-
+### **Interpretation and Final Conclusion (Step 12)**
+The heatmap provides a crucial sanity check for our data structure. Look closely at the dendrogram (the clustering tree) at the top of the columns:
+* **If the clustering is successful:** The tree will strictly separate the blue markers (CTRL) from the red markers (DIS) into two distinct branches. This means that, despite the lack of genome-wide strict FDR significance, these top 100 loci possess a strong, coordinated epigenetic signature capable of differentiating a diseased sample from a healthy one. 
+* **If the clustering is mixed:** If CTRL and DIS samples intermingle on the dendrogram branches, it implies that the top 100 probes are capturing individual patient heterogeneity, batch effects, or random noise rather than a unifying disease mechanism. 
