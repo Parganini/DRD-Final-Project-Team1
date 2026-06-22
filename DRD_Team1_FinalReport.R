@@ -656,20 +656,147 @@ write.csv(
 )
 
 ###############################################################################
-### STEP 10: multiple testing correction
+### STEP 10: Multiple testing correction
 ###############################################################################
 
+cat("\n--- Running Step 10: Multiple Testing Correction ---\n")
+
+# Load the t-test results generated in Step 09
+t_test_results <- read.csv("results/tables/step09_t_test_results.csv")
+
+# Apply Bonferroni correction (Family-Wise Error Rate)
+t_test_results$P_Bonferroni <- p.adjust(t_test_results$P_Value, method = "bonferroni")
+
+# Apply Benjamini-Hochberg correction (False Discovery Rate)
+t_test_results$P_FDR <- p.adjust(t_test_results$P_Value, method = "BH")
+
+# Set the significance threshold
+alpha <- 0.05
+
+# Count significant probes
+sig_nominal <- sum(t_test_results$P_Value < alpha, na.rm = TRUE)
+sig_bonferroni <- sum(t_test_results$P_Bonferroni < alpha, na.rm = TRUE)
+sig_fdr <- sum(t_test_results$P_FDR < alpha, na.rm = TRUE)
+
+cat("Significant probes (Nominal P < 0.05):", sig_nominal, "\n")
+cat("Significant probes (Bonferroni < 0.05):", sig_bonferroni, "\n")
+cat("Significant probes (BH/FDR < 0.05):", sig_fdr, "\n")
+
+# Save the adjusted table
+write.csv(t_test_results, "results/tables/step10_t_test_results_adjusted.csv", row.names = FALSE)
 
 
 ###############################################################################
-### STEP 11: volcano and Manhattan plots
+### STEP 11: Volcano and Manhattan plots
 ###############################################################################
 
+cat("\n--- Running Step 11: Volcano and Manhattan Plots ---\n")
+
+# --- A. Volcano Plot ---
+png("results/figures/step11_Volcano_Plot.png", width=8, height=6, units="in", res=300)
+
+plot(
+  x = t_test_results$Delta_Beta,
+  y = -log10(t_test_results$P_Value),
+  pch = 16,
+  cex = 0.5,
+  col = "darkgray",
+  xlab = "Delta Beta (DIS - CTRL)",
+  ylab = "-log10(Nominal P-value)",
+  main = "Volcano Plot of DNA Methylation Differences",
+  xlim = c(-max(abs(t_test_results$Delta_Beta), na.rm=TRUE), max(abs(t_test_results$Delta_Beta), na.rm=TRUE))
+)
+
+# Highlight significant targets (|Delta Beta| > 0.1 & p < 0.05)
+hyper <- which(t_test_results$Delta_Beta > 0.1 & t_test_results$P_Value < alpha)
+hypo <- which(t_test_results$Delta_Beta < -0.1 & t_test_results$P_Value < alpha)
+
+points(t_test_results$Delta_Beta[hyper], -log10(t_test_results$P_Value)[hyper], col = "red", pch = 16, cex = 0.6)
+points(t_test_results$Delta_Beta[hypo], -log10(t_test_results$P_Value)[hypo], col = "blue", pch = 16, cex = 0.6)
+
+abline(h = -log10(alpha), col = "black", lty = 2)
+abline(v = c(-0.1, 0.1), col = "black", lty = 2)
+
+legend("topright", legend = c("Hypermethylated", "Hypomethylated", "Not Significant"), 
+       col = c("red", "blue", "darkgray"), pch = 16, cex = 0.8, bty="n")
+dev.off()
+
+
+# --- B. Manhattan Plot ---
+library(qqman)
+preprocessNoob_results <- readRDS("results/rds/preprocessNoob_results.rds")
+ann <- getAnnotation(preprocessNoob_results)
+locations <- data.frame(ProbeID = rownames(ann), CHR = ann$chr, MAPINFO = ann$pos)
+
+# Merge coordinates with t-test results
+manhattan_data <- merge(t_test_results, locations, by = "ProbeID")
+
+# Format chromosomes for qqman
+manhattan_data$CHR <- gsub("chr", "", manhattan_data$CHR)
+manhattan_data$CHR[manhattan_data$CHR == "X"] <- 23
+manhattan_data$CHR[manhattan_data$CHR == "Y"] <- 24
+manhattan_data$CHR <- as.numeric(manhattan_data$CHR)
+manhattan_data <- manhattan_data[!is.na(manhattan_data$CHR) & !is.na(manhattan_data$P_Value), ]
+
+png("results/figures/step11_Manhattan_Plot.png", width=10, height=6, units="in", res=300)
+manhattan(
+  manhattan_data,
+  chr = "CHR",
+  bp = "MAPINFO",
+  snp = "ProbeID",
+  p = "P_Value",
+  col = c("gray50", "gray80"),
+  suggestiveline = FALSE, 
+  genomewideline = FALSE, 
+  main = "Manhattan Plot of Epigenome-Wide Association",
+  ylab = "-log10(Nominal P-value)"
+)
+dev.off()
 
 
 ###############################################################################
-### STEP 12: heatmap of the top 100 CpG probes
+### STEP 12: Heatmap of the top 100 CpG probes
 ###############################################################################
+
+cat("\n--- Running Step 12: Heatmap of Top 100 CpGs ---\n")
+library(gplots)
+
+# Extract top 100 probes by nominal P-value
+top_100_results <- t_test_results[order(t_test_results$P_Value), ][1:100, ]
+top_100_probes <- top_100_results$ProbeID
+
+# Subset normalized matrix
+beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
+beta_top100 <- beta_preprocessNoob[top_100_probes, ]
+
+# Setup phenotype colors
+load("results/rds/RGset_Report.RData")
+pheno <- data.frame(pData(RGset))
+group_colors <- ifelse(pheno$Group == "CTRL", "blue", "red")
+
+png("results/figures/step12_Heatmap_Top100.png", width=8, height=8, units="in", res=300)
+heatmap.2(
+  as.matrix(beta_top100),
+  main = "Top 100 Differentially Methylated CpGs",
+  trace = "none",              
+  col = bluered(100),          
+  scale = "none",              
+  dendrogram = "both",         
+  ColSideColors = group_colors,
+  margins = c(10, 5),          
+  cexCol = 0.8,
+  labRow = FALSE               
+)
+
+legend("topright", 
+       legend = levels(as.factor(pheno$Group)), 
+       fill = c("blue", "red"), 
+       border = FALSE, 
+       bty = "n", 
+       cex = 0.8)
+dev.off()
+
+cat("\n--- Pipeline Execution Complete ---\n")
 
 
 
