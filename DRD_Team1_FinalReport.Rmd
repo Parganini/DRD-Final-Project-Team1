@@ -731,14 +731,167 @@ write.csv(
 ```
 # Step 10. Multiple Testing Correction
 
+In Step 09, we performed roughly 450,000 independent t-tests. Using a nominal p-value threshold of 0.05 without adjustment would lead to thousands of false positives. To control for this, we applied two multiple testing correction methods: Bonferroni (controlling the Family-Wise Error Rate) and Benjamini-Hochberg (controlling the False Discovery Rate).
+
+```{r step10-multiple-testing}
+# Load the t-test results from Step 09
+t_test_results <- read.csv("results/tables/step09_t_test_results.csv")
+
+# 1. Apply Bonferroni correction
+t_test_results$P_Bonferroni <- p.adjust(t_test_results$P_Value, method = "bonferroni")
+
+# 2. Apply Benjamini-Hochberg (BH / FDR) correction
+t_test_results$P_FDR <- p.adjust(t_test_results$P_Value, method = "BH")
+
+# Define the significance threshold assigned in the pipeline
+alpha <- 0.05
+
+# Count the number of significant probes for each method
+sig_nominal <- sum(t_test_results$P_Value < alpha, na.rm = TRUE)
+sig_bonferroni <- sum(t_test_results$P_Bonferroni < alpha, na.rm = TRUE)
+sig_fdr <- sum(t_test_results$P_FDR < alpha, na.rm = TRUE)
+
+# Create a summary table to answer the pipeline questions
+correction_summary <- data.frame(
+  Method = c("Nominal P-Value", "Bonferroni Correction", "BH (FDR) Correction"),
+  Significant_Probes = c(sig_nominal, sig_bonferroni, sig_fdr)
+)
+
+print(correction_summary)
+
+# Save the updated dataframe containing adjusted p-values for Steps 11 and 12
+write.csv(
+  t_test_results, 
+  "results/tables/step10_t_test_results_adjusted.csv", 
+  row.names = FALSE
+)
 
 
 # Step 11. Volcano and Manhattan Plots
 
+In this step, we visualize the results of the differential methylation analysis. 
+The Volcano plot displays the biological magnitude of change (Delta Beta) against statistical significance. 
+The Manhattan plot distributes these p-values across the genomic coordinates to identify specific hotspots of differential methylation.
 
+## Volcano Plot
+
+```{r step11-volcano-plot, fig.width=8, fig.height=6}
+# Load the adjusted t-test results from Step 10
+t_test_results <- read.csv("results/tables/step10_t_test_results_adjusted.csv")
+
+# Define significance threshold (FDR < 0.05)
+alpha <- 0.05
+sig_fdr <- t_test_results$P_FDR < alpha
+
+# Create a color vector: 
+# Grey for non-significant, Red for hypermethylated (FDR < 0.05 & Delta_Beta > 0)
+# Blue for hypomethylated (FDR < 0.05 & Delta_Beta < 0)
+point_colors <- rep("darkgray", nrow(t_test_results))
+point_colors[sig_fdr & t_test_results$Delta_Beta > 0] <- "firebrick"
+point_colors[sig_fdr & t_test_results$Delta_Beta < 0] <- "steelblue"
+
+# Plot the Volcano Plot
+plot(
+  x = t_test_results$Delta_Beta,
+  y = -log10(t_test_results$P_Value),
+  pch = 16,
+  cex = 0.5,
+  col = point_colors,
+  xlab = expression(paste(Delta, " Beta (DIS - CTRL)")),
+  ylab = expression(paste("-log"[10], "(Nominal P-value)")),
+  main = "Volcano Plot of DNA Methylation",
+  xlim = c(-max(abs(t_test_results$Delta_Beta), na.rm=TRUE), 
+            max(abs(t_test_results$Delta_Beta), na.rm=TRUE))
+)
+
+# Add a horizontal line for the nominal p-value threshold of 0.05
+abline(h = -log10(0.05), col = "black", lty = 2)
+
+legend("topright", 
+       legend = c("Hypermethylated (FDR < 0.05)", "Hypomethylated (FDR < 0.05)", "Not Significant"),
+       col = c("firebrick", "steelblue", "darkgray"), 
+       pch = 16, cex = 0.8)
+
+# Load the normalized object to extract genomic coordinates
+preprocessNoob_results <- readRDS("results/rds/preprocessNoob_results.rds")
+
+# Map the data to the genome to get chromosome and positional data
+GRset <- mapToGenome(preprocessNoob_results)
+
+# Extract locations into a dataframe
+locations <- as.data.frame(rowRanges(GRset))
+locations$ProbeID <- rownames(locations)
+
+# Merge coordinates with our t-test results
+manhattan_data <- merge(t_test_results, locations, by = "ProbeID")
+
+# The qqman package requires chromosomes to be numeric (1-22, 23 for X, 24 for Y)
+manhattan_data$CHR <- gsub("chr", "", manhattan_data$seqnames)
+manhattan_data$CHR[manhattan_data$CHR == "X"] <- 23
+manhattan_data$CHR[manhattan_data$CHR == "Y"] <- 24
+manhattan_data$CHR <- as.numeric(manhattan_data$CHR)
+
+# Clean up any unmapped or NA chromosomes before plotting
+manhattan_data <- manhattan_data[!is.na(manhattan_data$CHR) & !is.na(manhattan_data$P_Value), ]
+
+# Plot the Manhattan Plot
+manhattan(
+  manhattan_data,
+  chr = "CHR",
+  bp = "start",
+  snp = "ProbeID",
+  p = "P_Value",
+  col = c("gray50", "gray80"),
+  suggestiveline = FALSE, 
+  genomewideline = FALSE, # Disabled default GWAS lines as epigenomics uses different thresholds
+  main = "Manhattan Plot of Epigenome-Wide Association",
+  ylab = expression(paste("-log"[10], "(Nominal P-value)"))
+)
 
 # Step 12. Heatmap of the Top 100 CpGs
 
+To visualize the methylation patterns of the most significantly altered loci, we generate a heatmap of the top 100 differentially methylated probes. Unsupervised hierarchical clustering is applied to both the probes (rows) and the samples (columns) to see if the samples group together by disease status based solely on these 100 CpG sites.
+
+```{r step12-heatmap, fig.width=8, fig.height=8}
+# Load necessary data
+t_test_results <- read.csv("results/tables/step10_t_test_results_adjusted.csv")
+beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
+load("results/rds/RGset_Report.RData")
+pheno <- data.frame(pData(RGset))
+
+# Sort the results by the lowest nominal p-value to extract the top 100 probes
+# (Note: We use nominal p-value here to guarantee exactly 100 probes, 
+# in case fewer than 100 survive the strict FDR correction)
+top_100_results <- t_test_results[order(t_test_results$P_Value), ][1:100, ]
+top_100_probes <- top_100_results$ProbeID
+
+# Subset the normalized beta matrix to include only these 100 probes
+beta_top100 <- beta_preprocessNoob[top_100_probes, ]
+
+# Define column colors based on sample group (CTRL vs DIS)
+group_colors <- ifelse(pheno$Group == "CTRL", "blue", "red")
+
+# Generate the heatmap
+heatmap.2(
+  beta_top100,
+  main = "Top 100 Differentially Methylated CpGs",
+  trace = "none",              # Removes trace lines inside the heatmap
+  col = bluered(100),          # Standard diverging color palette
+  scale = "none",              # Beta values are strictly 0 to 1, no need to scale
+  dendrogram = "both",         # Cluster both probes (rows) and samples (columns)
+  ColSideColors = group_colors,# Color the columns by Group
+  margins = c(10, 5),          # Adjust margins so sample names fit
+  cexCol = 0.8,
+  labRow = FALSE               # Hide row names (100 probe IDs will be too cluttered)
+)
+
+# Add a legend for the column side colors
+legend("topright", 
+       legend = c("CTRL", "DIS"), 
+       fill = c("blue", "red"), 
+       border = FALSE, 
+       bty = "n", 
+       cex = 0.8)
 
 
 # Conclusions
