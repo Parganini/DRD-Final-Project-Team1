@@ -153,7 +153,7 @@ head(NegativeControl)
 controlStripPlot(RGset, controls = "NEGATIVE")
 ```
 
-The negative control probes show signal intensities below log2(10) in both channels across all samples, indicating acceptable background noise levels.
+**Interpretation:** The expected value for these negative controls is around or below log2(10) (which represents the baseline background fluorescence noise of the scanner). Since these control probes are designed with sequences that should not hybridize to human DNA, they solely measure the baseline random noise of the assay. Because all our samples fall within this low-intensity range across both the Red and Green channels, we can confidently confirm that there is no excessive background fluorescence or nonspecific cross-hybridization in our arrays.
 
 ```{r step05-detection-pvalues}
 Detection_pvalue <- detectionP(RGset)
@@ -460,7 +460,10 @@ legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue",
 **Interpretation:** In the density plots, blue lines represent Type I probes and red lines represent Type II probes, while in the boxplots blue boxes represent CTRL samples and red boxes represent DIS samples. After normalization with `preprocessNoob`, the global beta-value distributions remained within the expected 0–1 range and preserved the typical bimodal methylation pattern. Type I and Type II probes still showed different density profiles, with Type I probes showing stronger peaks toward the unmethylated and highly methylated extremes, whereas Type II probes were shifted toward more intermediate beta values. The standard deviation density plots showed higher variability for Type II probes than for Type I probes.
 After normalization, the SD distribution changed slightly, suggesting that preprocessNoob modified part of the technical variability while preserving the overall beta-value structure.
 
-# Step 08. PCA on Normalized Beta Values: PCA evaluates global structure and potential confounders
+The preprocessNoob method is highly appropriate for this specific dataset. Because our cohort is very small (only 8 samples), applying aggressive between-array normalizations (like preprocessQuantile, which forces all sample distributions to be identical) could over-correct the data and erase genuine biological differences. preprocessNoob is a within-array method that successfully performs background correction and dye-bias equalization without relying on large sample sizes. Furthermore, when comparing the boxplots colored by group (CTRL vs DIS) before and after normalization, the overall medians and interquartile ranges remain largely consistent. The overall distributions between the two groups do not show extreme, artifactual shifts, confirming that the samples are comparable and the normalization successfully preserved the core biological structure.
+
+# Step 08. PCA on Normalized Beta Values 
+PCA evaluates global structure and potential confounders
 ```{r load-data, message=FALSE, warning=FALSE}
 #load normalized beta values 
 beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
@@ -547,7 +550,7 @@ legend(
 )
 ```
 
-**Interpretation**: The CTRL (black) and DIS (pink) samples do not separate cleanly along PC1 or PC2. Samples from both groups are intermixed across the plot space. This suggests that disease status alone is not the dominant driver of global methylation variance — other sources of variation (sex, batch) likely contribute more to the top PCs.
+**Interpretation**: When coloring the PCA by the biological group (CTRL vs DIS), the samples do not form distinct clusters and are intermixed across both primary principal components. This indicates that the disease status is not the primary driver of global methylation variance in this dataset. The relatively subtle epigenetic signature of the disease is being overshadowed by other factors capturing much larger chunks of the variance.
 
 ## PCA Colored by Sex
 
@@ -591,7 +594,7 @@ legend(
 )
 ```
 
-**Interpretation:** Female samples are shown in black and male samples are shown in pink/red. The PCA does not show a complete separation between male and female samples. Some samples are more distant from the central cluster, but sex alone does not fully explain PC1 and PC2. Since sex can influence methylation patterns, especially through sex chromosomes, it should be considered when interpreting downstream differential methylation results.
+**Interpretation:** DNA methylation is profoundly influenced by biological sex, primarily due to X-chromosome inactivation in females and sex-specific global methylation patterns. Looking at our plot, the samples perfectly divide along the second principal component (PC2, the y-axis) according to their sex. Because our samples separate flawlessly by sex but not by group, it confirms that biological sex is a massive driver of variance in this dataset, greatly overshadowing the disease-related epigenetic signals.
 
 ## PCA Colored by Batch (Slide)
 
@@ -635,7 +638,7 @@ legend(
 )
 ```
 
-**Interpretation:** Five different slides/Sentrix IDs are represented. No single slide clearly explains all variation in PC1 and PC2, although samples from slide 3999547017 appear close to each other in the lower-left region. Because there are several slide IDs for only eight samples, batch effects cannot be ruled out completely, but slide does not appear to be the dominant source of variation in this PCA.
+**Interpretation:** The array slide (represented by the Sentrix_ID column) is a purely technical variable. We check the data for technical "batch effects" by coloring the PCA by Slide. As seen in our plot, the samples distinctly split into two clusters along the first principal component (PC1, the x-axis) based strictly on which slide they were processed on. Because PC1 represents the largest source of variance in the entire dataset, this strongly indicates that a severe technical artifact (batch effect) is still present. This introduces that while preprocessNoob is excellent at correcting background fluorescence and dye bias, it does not completely eliminate slide-to-slide batch effects. In a full-scale study, an additional batch-correction algorithm (such as ComBat) would be required before proceeding to differential methylation testing.
 
 # Step 09. Differential Methylation Analysis with t-test
 
@@ -720,7 +723,7 @@ write.csv(
 )
 ```
 
-## Step 10. Multiple Testing Correction
+# Step 10. Multiple Testing Correction
 
 In Step 09, we performed independent t-tests across approximately 450,000 CpG probes to identify differentially methylated probes between the Control (CTRL) and Disease (DIS) groups. Using a nominal p-value threshold of 0.05 without adjustment would lead to tens of thousands of false positives due to the sheer volume of tests being conducted. To control for this, we applied two multiple testing correction methods: Bonferroni (which strictly controls the Family-Wise Error Rate) and Benjamini-Hochberg (which controls the False Discovery Rate, or FDR).
 
@@ -765,7 +768,7 @@ Furthermore, the lack of genome-wide significant results post-correction could b
 
 ---
 
-## Step 11. Volcano and Manhattan Plots
+# Step 11. Volcano and Manhattan Plots
 
 Because our stringent FDR correction eliminated our statistically significant probes, we must rely on nominal p-values combined with the biological magnitude of change (Delta Beta) to identify "suggestive" loci for further exploratory analysis. We visualize these results using Volcano and Manhattan plots.
 
@@ -851,7 +854,7 @@ manhattan(
 
 ---
 
-## Step 12. Heatmap of the Top 100 CpGs
+# Step 12. Heatmap of the Top 100 CpGs
 
 To visually assess whether the disease signature is distinct from the control signature, we isolated the top 100 most significant probes (based on the lowest nominal p-values) and generated a heatmap. We applied unsupervised hierarchical clustering to both the probes (rows) and the samples (columns).
 
