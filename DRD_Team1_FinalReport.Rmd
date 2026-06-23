@@ -1,24 +1,42 @@
 ---
-title: "Comprehensive Analysis of DNA Methylation Using the Illumina HumanMethylation450 BeadChip Platform"
-subtitle: "DNA & RNA Dynamics final project, Team 1. Repository: [Parganini/DRD-Final-Project-Team1](https://github.com/Parganini/DRD-Final-Project-Team1)"
+title: "DNA Methylation Analysis of CTRL and DIS Samples"
+subtitle: "Illumina HumanMethylation450K Array Analysis | DNA & RNA Dynamics Final Project, Team 1"
 author: "Fatemeh Bayat, Tamime Eter, Seyed Parsa Golshani, Amirhossein Heidari, Mahmoud Ahmed Mohamed Mohamed Ibrahim, Hector Eduardo Parga Najera, Bita Rahmani, Shayan Zanjaniha"
-date: "2026-06"
+date: "June 2026"
 output:
   html_document:
     toc: true
     toc_depth: 3
     number_sections: false
     df_print: paged
+header-includes:
+  - |
+    <style>
+    #header {
+      text-align: center;
+    }
+    .project-citation {
+      text-align: center;
+      font-size: 0.95em;
+      margin-top: 0.5em;
+      margin-bottom: 2em;
+    }
+    </style>
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE,
-                      fig.align="center", dpi=300, fig.retina=2)
-knitr::opts_knit$set(root.dir=normalizePath("."))
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center", dpi = 300, fig.retina = 2)
+knitr::opts_knit$set(root.dir = normalizePath("."))
 ```
 
 # Introduction
 
+This report was prepared as the Team 1 final project for the DNA & RNA Dynamics course at Alma Mater Studiorum - Universita di Bologna. The assignment focuses on the analysis of DNA methylation array data using the R/Bioconductor `minfi` workflow and the specific methodological parameters assigned to Team 1.
+
+DNA methylation is an epigenetic modification that contributes to gene regulation and can vary between biological conditions. In this project, Illumina HumanMethylation450K array data from CTRL and DIS samples are analyzed to evaluate whether methylation patterns differ between the two groups.
+
+The workflow follows the assigned Team 1 pipeline using `minfi` for raw data import, quality control, normalization, exploratory visualization, and probe-wise differential methylation testing. The analysis includes raw fluorescence inspection, quality control, beta and M-value summaries, `preprocessNoob` normalization, PCA, t-tests between CTRL and DIS samples, multiple testing correction, volcano and Manhattan plots, and heatmap visualization of the top candidate probes. The results are interpreted cautiously because the dataset is small and the statistical analysis involves hundreds of thousands of CpG-level tests.
 
 Team 1 assignments:
 
@@ -27,52 +45,81 @@ Team 1 assignments:
 - Normalization method: `preprocessNoob`
 - Differential methylation test: `t-test`
 
-# Step 00. Basic Preparation
+---
 
-Clean the R environment
+# Methodology
 
-```{r clean-environment}
-rm(list=ls())
+---
+
+# Step 00. Setup
+
+Clean the workspace before starting the analysis.
+
+```{r step00-clean-environment}
+rm(list = ls())
 ```
 
-Load the packages required for this analysis
+Load all packages used by the complete workflow.
 
-```{r load-packages}
+```{r step00-load-packages}
 library(minfi)
 library(qqman)
 library(gplots)
 library(IlluminaHumanMethylation450kmanifest)
+library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
 ```
 
-Define the folders used by the project
+Define input and output folders relative to the repository root.
 
-```{r define-folders}
+```{r step00-define-folders}
 baseDir <- "data/raw"
 rdsDir <- "results/rds"
 tablesDir <- "results/tables"
 figuresDir <- "results/figures"
 ```
 
+---
+
 # Step 01. Data Import and RGChannelSet Creation
 
-```{r step01-load-data}
-list.files("./data/raw/")
-SampleSheet <- read.csv("./data/raw/SampleSheet_Report_II.csv", header = TRUE)
-SampleSheet
+Check the raw data folder and read the sample sheet.
 
-targets <- read.metharray.sheet("./data/raw")
+```{r step01-read-sample-sheet}
+list.files(baseDir)
+
+SampleSheet <- read.csv(file.path(baseDir, "SampleSheet_Report_II.csv"),
+                        header = TRUE,
+                        stringsAsFactors = FALSE)
+head(SampleSheet)
+```
+
+Read the sample sheet with `minfi` and load the IDAT files into an `RGChannelSet` object called `RGset`.
+
+```{r step01-load-rgset}
+targets <- read.metharray.sheet(baseDir)
 targets
 
 RGset <- read.metharray.exp(targets = targets)
-save(RGset, file = file.path(rdsDir, "RGset_Report.RData"))
+```
 
+Explore the `RGChannelSet` object.
+
+```{r step01-explore-rgset}
 RGset
+class(RGset)
+```
+
+```{r step01-inspect-rgset, results="hide"}
 str(RGset)
 ```
 
-The `SampleSheet` contains the metadata for our 8 samples, including group (CTRL/DIS), sex, and Sentrix ID/Position. `read.metharray.sheet()` reads this sheet and automatically attaches the file paths needed to locate the corresponding idat files. `read.metharray.exp()` then loads the raw Red and Green fluorescence intensities for all samples into an `RGChannelSet` object called `RGset`.
+The `SampleSheet` contains the metadata for our 8 samples, including group (CTRL/DIS), sex, and Sentrix ID/Position. `read.metharray.sheet()` reads this sheet and automatically attaches the file paths needed to locate the corresponding IDAT files. `read.metharray.exp()` then loads the raw Red and Green fluorescence intensities for all samples into an `RGChannelSet` object called `RGset`.
+
+---
 
 # Step 02. Red and Green Fluorescence Channels
+
+Extract the raw Red and Green fluorescence intensity matrices from `RGset`. Each matrix has one row per probe address and one column per sample.
 
 ```{r step02-extract-channels}
 Red <- data.frame(getRed(RGset))
@@ -84,9 +131,11 @@ dim(Green)
 head(Green)
 ```
 
-`getRed()` and `getGreen()` extract the raw fluorescence intensity matrices from `RGset`, one row per probe address and one column per sample.
+---
 
 # Step 03. Team 1 Address Check
+
+Define the Team 1 address and look it up in the Type I and Type II probe information tables.
 
 ```{r step03-address-lookup}
 TARGET_ADDRESS <- "42796479"
@@ -98,9 +147,13 @@ ProbeInfo_II <- data.frame(getProbeInfo(RGset, type = "II"))
 ProbeInfo_I[ProbeInfo_I$AddressA == TARGET_ADDRESS, ]
 ProbeInfo_I[ProbeInfo_I$AddressB == TARGET_ADDRESS, ]
 ProbeInfo_II[ProbeInfo_II$AddressA == TARGET_ADDRESS, ]
+```
 
-Red_fluorescences   <- Red[rownames(Red) == TARGET_ADDRESS, ]
-Green_fluorescences <- Green[rownames(Green) == TARGET_ADDRESS, ]
+Extract the Red and Green fluorescence values for address `42796479` and summarize them together with the probe annotation.
+
+```{r step03-fluorescence-summary}
+Red_fluorescences <- Red[rownames(Red) == TARGET_ADDRESS, , drop = FALSE]
+Green_fluorescences <- Green[rownames(Green) == TARGET_ADDRESS, , drop = FALSE]
 
 df_summary_probes <- data.frame(
   Sample             = colnames(Red_fluorescences),
@@ -110,33 +163,53 @@ df_summary_probes <- data.frame(
   Color              = "Red"
 )
 
-print(df_summary_probes)
+df_summary_probes
 ```
 
 Address `42796479` corresponds to the **AddressA (unmethylated)** position of probe **cg10602367**, a **Type I, Red-channel** probe. Type I probes use a single color channel, so the Green fluorescence values for this address are near background levels across all samples, while Red fluorescence varies between samples — reflecting biological differences in signal intensity at this CpG site.
 
+---
+
 # Step 04. MethylSet Creation
 
-```{r step04-mset-raw}
+Convert `RGset` to a raw `MethylSet` object without normalization.
+
+```{r step04-create-mset-raw}
 MSet.raw <- preprocessRaw(RGset)
 MSet.raw
-save(MSet.raw, file = file.path(rdsDir, "MSet_raw.RData"))
+```
 
+Extract the methylated and unmethylated signal matrices from `MSet.raw`.
+
+```{r step04-extract-methylation-signals}
 Meth <- as.matrix(getMeth(MSet.raw))
-str(Meth)
 head(Meth)
 
 Unmeth <- as.matrix(getUnmeth(MSet.raw))
-str(Unmeth)
 head(Unmeth)
+```
 
-Meth[rownames(Meth) == "cg10602367",]
-Unmeth[rownames(Unmeth) == "cg10602367",]
+```{r step04-inspect-signal-objects, results="hide"}
+str(Meth)
+str(Unmeth)
+```
+
+Check probe `cg10602367`, identified from the Team 1 address in Step 03.
+
+```{r step04-check-team1-probe}
+Meth[rownames(Meth) == "cg10602367", , drop = FALSE]
+Unmeth[rownames(Unmeth) == "cg10602367", , drop = FALSE]
 ```
 
 `preprocessRaw()` converts the raw Red/Green intensities in `RGset` into a `MethylSet`, splitting the signal into **Methylated** and **Unmethylated** intensities for each probe. For our probe `cg10602367`, the Unmethylated signal is substantially higher than the Methylated signal across all 8 samples, consistent with the Red-channel Type I design identified in Step 3.
 
+---
+
 # Step 05. Quality Control
+
+## 5.1 QC Plot
+
+Calculate median methylated and unmethylated signal intensities for each sample and display the QC plot.
 
 ```{r step05-qc-plot}
 qc <- getQC(MSet.raw)
@@ -144,7 +217,11 @@ qc
 plotQC(qc)
 ```
 
-**Interpretation:** The QC plot shows the median methylated (mMed) and unmethylated (uMed) signal intensities per sample. Samples with higher values in both signals indicate higher quality. Most samples show median values in the 8.6–11.2 range (log2 scale); a few samples (e.g. GSM5319603, GSM5319609) show comparatively lower values, suggesting somewhat lower signal quality.
+**Interpretation:** The QC plot summarizes the median methylated and unmethylated signal intensities for each sample on the log2 scale. Several samples are flagged by this median-intensity criterion, indicating lower overall signal intensity compared with the other arrays. However, this plot alone is not sufficient to discard samples because it does not directly evaluate whether probe signals are distinguishable from background. Therefore, the QC plot should be interpreted together with the negative control intensities and detection p-values below.
+
+## 5.2 Negative Control Intensities
+
+Extract control probes from the array and plot the negative control intensities.
 
 ```{r step05-negative-controls}
 NegativeControl <- data.frame(getProbeInfo(RGset, type = "Control"))
@@ -153,24 +230,23 @@ head(NegativeControl)
 controlStripPlot(RGset, controls = "NEGATIVE")
 ```
 
-**Interpretation:** The expected value for these negative controls is around or below log2(10) (which represents the baseline background fluorescence noise of the scanner). Since these control probes are designed with sequences that should not hybridize to human DNA, they solely measure the baseline random noise of the assay. Because all our samples fall within this low-intensity range across both the Red and Green channels, we can confidently confirm that there is no excessive background fluorescence or nonspecific cross-hybridization in our arrays.
+**Interpretation:** Negative control probes are expected to show low fluorescence intensity because their sequences should not hybridize to human DNA. In this plot, the negative controls remain low in both the Green and Red channels, mostly below about 10 on the log2 intensity scale. This indicates that background fluorescence and nonspecific hybridization are not excessive in these arrays. Together with the detection p-value results, this supports keeping the samples for downstream analysis despite the lower median intensities observed for some arrays in the QC plot.
+
+## 5.3 Detection P-values
+
+Calculate detection p-values and identify failed probe-sample tests using Team 1's threshold of 0.05.
 
 ```{r step05-detection-pvalues}
-Detection_pvalue <- detectionP(RGset)
-save(Detection_pvalue, file = file.path(rdsDir, "Detection_pvalue.RData"))
+DETECTION_P_THRESHOLD <- 0.05
+detP <- detectionP(RGset)
 
-Over_Threshold <- Detection_pvalue > 0.05
+Over_Threshold <- detP > DETECTION_P_THRESHOLD
 table(Over_Threshold)
 sum(Over_Threshold)
 
 Total_Failed_Positions <- sum(Over_Threshold)
 Total_Detection_Tests <- length(Over_Threshold)
 Total_Failed_Percentage <- Total_Failed_Positions / Total_Detection_Tests * 100
-
-failed_probe_message <- sprintf(
-  "There are %s failed detection tests with a detection p-value higher than 0.05",
-  Total_Failed_Positions
-)
 
 Over_Threshold_Per_Sample <- colSums(Over_Threshold)
 Over_Threshold_Per_Sample
@@ -181,20 +257,22 @@ Over_Threshold_Fraction_Per_Sample
 failed <- data.frame(
   Sample = names(Over_Threshold_Per_Sample),
   n_Failed_Positions = Over_Threshold_Per_Sample,
-  Fraction_Failed_Positions = Over_Threshold_Fraction_Per_Sample,
-  Percentage_Failed_Positions = Over_Threshold_Fraction_Per_Sample * 100
+  Percentage_Failed_Positions = Over_Threshold_Fraction_Per_Sample * 100,
+  row.names = NULL
 )
-print(failed)
-print(failed_probe_message)
+failed
 ```
 
-**Interpretation:** Using Team 1's detection p-value threshold of 0.05, there are `r Total_Failed_Positions` failed detection tests across all samples, corresponding to `r round(Total_Failed_Percentage, 2)`% of all probe-sample detection tests. Per sample, the number of failed positions ranges from `r min(Over_Threshold_Per_Sample)` to `r max(Over_Threshold_Per_Sample)`, corresponding to `r round(min(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% to `r round(max(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% of positions. Since all samples show a low percentage of failed positions, the overall detection quality is good and all samples can be kept for the next steps.
+**Interpretation:** Using Team 1's detection p-value threshold of 0.05, there are `r Total_Failed_Positions` failed detection tests across all samples, corresponding to `r round(Total_Failed_Percentage, 2)`% of all probe-sample detection tests. Per sample, the number of failed positions ranges from `r min(Over_Threshold_Per_Sample)` to `r max(Over_Threshold_Per_Sample)`, corresponding to `r round(min(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% to `r round(max(Over_Threshold_Fraction_Per_Sample) * 100, 2)`% of positions. Because the failed fraction is low for every sample, most probes are distinguishable from background. Therefore, no sample needs to be removed at this stage.
+
+---
 
 # Step 06. Raw Beta and M Values
 
-We retrieve beta and M value matrices from the raw MethylSet.
+Retrieve beta and M value matrices from the raw `MethylSet`.
 
 Extract raw beta values and inspect their dimensions and distribution.
+
 ```{r step06-beta-raw}
 beta <- getBeta(MSet.raw)
 class(beta)
@@ -204,6 +282,7 @@ summary(beta)
 ```
 
 Extract raw M values and inspect their dimensions and distribution.
+
 ```{r step06-m-raw}
 M <- getM(MSet.raw)
 dim(M)
@@ -211,22 +290,21 @@ head(M)
 summary(M)
 ```
 
-Save raw beta and M matrices.
-```{r step06-save-beta-m}
-saveRDS(beta, file=file.path(rdsDir, "beta_raw.rds"))
-saveRDS(M, file=file.path(rdsDir, "M_raw.rds"))
-```
-
 Recover phenotype data to split samples by group.
+
 ```{r step06-phenotype-data}
 pheno <- data.frame(pData(RGset))
-str(pheno)
 table(pheno$Group)
 ```
 
+```{r step06-inspect-phenotype-data, results="hide"}
+str(pheno)
+```
+
 Split beta values into CTRL and DIS groups.
+
 ```{r step06-split-beta}
-beta_CTRL <- beta[, pheno$Group=="CTRL"]
+beta_CTRL <- beta[, pheno$Group == "CTRL"]
 beta_DIS <- beta[, pheno$Group == "DIS"]
 
 dim(beta_CTRL)
@@ -234,100 +312,98 @@ dim(beta_DIS)
 ```
 
 Split M values into CTRL and DIS groups.
+
 ```{r step06-split-m}
-M_CTRL <- M[, pheno$Group=="CTRL"]
-M_DIS <- M[, pheno$Group=="DIS"]
+M_CTRL <- M[, pheno$Group == "CTRL"]
+M_DIS <- M[, pheno$Group == "DIS"]
 
 dim(M_CTRL)
 dim(M_DIS)
 ```
 
 Calculate mean beta and M values per CpG within each group.
-```{r step06-summary-beta-m}
-mean_of_beta_CTRL <- apply(beta_CTRL, 1, mean, na.rm=TRUE)
-mean_of_beta_DIS <- apply(beta_DIS, 1, mean, na.rm=TRUE)
 
-mean_of_M_CTRL <- apply(M_CTRL, 1, mean, na.rm=TRUE)
+```{r step06-summary-beta-m}
+mean_of_beta_CTRL <- apply(beta_CTRL, 1, mean, na.rm = TRUE)
+mean_of_beta_DIS <- apply(beta_DIS, 1, mean, na.rm = TRUE)
+
+mean_of_M_CTRL <- apply(M_CTRL, 1, mean, na.rm = TRUE)
 mean_of_M_DIS <- apply(M_DIS, 1, mean, na.rm = TRUE)
 ```
+
 Remove infinite M values before density estimation.
+
 ```{r step06-clean-infinite-m}
 mean_of_M_CTRL <- mean_of_M_CTRL[is.finite(mean_of_M_CTRL)]
 mean_of_M_DIS <- mean_of_M_DIS[is.finite(mean_of_M_DIS)]
 ```
 
 Estimate density distributions for raw beta and M means.
-```{r step06-density-estimation}
-d_mean_of_beta_CTRL <- density(mean_of_beta_CTRL, na.rm=TRUE)
-d_mean_of_beta_DIS <- density(mean_of_beta_DIS, na.rm=TRUE)
 
-d_mean_of_M_CTRL <- density(mean_of_M_CTRL, na.rm=TRUE)
-d_mean_of_M_DIS <- density(mean_of_M_DIS, na.rm=TRUE)
+```{r step06-density-estimation}
+d_mean_of_beta_CTRL <- density(mean_of_beta_CTRL, na.rm = TRUE)
+d_mean_of_beta_DIS <- density(mean_of_beta_DIS, na.rm = TRUE)
+
+d_mean_of_M_CTRL <- density(mean_of_M_CTRL, na.rm = TRUE)
+d_mean_of_M_DIS <- density(mean_of_M_DIS, na.rm = TRUE)
 ```
 
 Plot raw beta density distributions by group.
+
 ```{r step06-plot-beta-density, message=FALSE, warning=FALSE}
-plot(d_mean_of_beta_CTRL, col="blue",
-     main="Raw beta values", xlab="Mean beta")
+plot(d_mean_of_beta_CTRL, col = "blue",
+     main = "Raw beta values", xlab = "Mean beta")
 
-lines(d_mean_of_beta_DIS, col="red")
+lines(d_mean_of_beta_DIS, col = "red")
 
-legend("topright", legend=c("CTRL", "DIS"),
-       col=c("blue", "red"), lty=1, bty="n")
+legend("topright", legend = c("CTRL", "DIS"),
+       col = c("blue", "red"), lty = 1, bty = "n")
 ```
 
 Plot raw M value density distributions by group.
+
 ```{r step06-plot-M-density, message=FALSE, warning=FALSE}
-plot(d_mean_of_M_CTRL, col="blue",
-     main="Raw M values", xlab="Mean M")
+plot(d_mean_of_M_CTRL, col = "blue",
+     main = "Raw M values", xlab = "Mean M")
 
-lines(d_mean_of_M_DIS, col="red")
+lines(d_mean_of_M_DIS, col = "red")
 
-legend("topright", legend=c("CTRL", "DIS"),
-       col=c("blue", "red"), lty=1, bty="n")
+legend("topright", legend = c("CTRL", "DIS"),
+       col = c("blue", "red"), lty = 1, bty = "n")
 ```
 
 **Interpretation:** The raw beta and M-value density curves for CTRL and DIS samples show broadly similar distributions. Small shifts between the two groups can be observed, but the overall methylation profiles are largely comparable at the raw-data level.
 
-Save summary vectors used for the density plots.
-```{r step06-save-summary-vectors}
-saveRDS(mean_of_beta_CTRL,
-        file=file.path(rdsDir, "mean_of_beta_raw_CTRL.rds"))
-
-saveRDS(mean_of_beta_DIS,
-        file=file.path(rdsDir, "mean_of_beta_raw_DIS.rds"))
-
-saveRDS(mean_of_M_CTRL,
-        file=file.path(rdsDir, "mean_of_M_raw_CTRL.rds"))
-
-saveRDS(mean_of_M_DIS,
-        file=file.path(rdsDir, "mean_of_M_raw_DIS.rds"))
-```
+---
 
 # Step 07. Normalization with preprocessNoob
 
 The assigned Team 1 normalization method was `preprocessNoob`. Raw and normalized beta values were compared by Type I and Type II probe chemistry. This comparison is important because Infinium Type I and Type II assays can show systematic differences: Type II beta values tend to be shifted toward intermediate methylation levels and can show different variability from Type I probes. Normalization is used to reduce technical variation before biological interpretation.
 
-Open the raw RGChannelSet and raw beta matrix saved in previous steps.
-```{r step07-load-raw-data}
-load(file.path(rdsDir, "RGset_Report.RData"))
-beta <- readRDS(file.path(rdsDir, "beta_raw.rds"))
-```
+## 7.1 Raw Beta Values by Probe Chemistry
 
 Inspect the raw RGChannelSet and beta matrix.
+
 ```{r step07-inspect-raw-data}
-RGset
-head(beta)
 dim(beta)
 ```
 
+```{r step07-inspect-raw-data-extra, results="hide"}
+RGset
+head(beta)
+```
+
 Retrieve Type I and Type II probe annotations from the manifest.
+
 ```{r step07-probe-annotations}
-dfI <- data.frame(getProbeInfo(RGset, type="I"))
-dfII <- data.frame(getProbeInfo(RGset, type="II"))
+dfI <- data.frame(getProbeInfo(RGset, type = "I"))
+dfII <- data.frame(getProbeInfo(RGset, type = "II"))
 
 dim(dfI)
 dim(dfII)
+```
+
+```{r step07-inspect-probe-annotations, results="hide"}
 str(dfI)
 str(dfII)
 head(dfI$Name)
@@ -335,167 +411,217 @@ head(dfII$Name)
 ```
 
 Split raw beta values by probe chemistry.
+
 ```{r step07-split-beta-by-chemistry}
-beta_I <- beta[rownames(beta) %in% dfI$Name,]
-beta_II <- beta[rownames(beta) %in% dfII$Name,]
+beta_I <- beta[rownames(beta) %in% dfI$Name, ]
+beta_II <- beta[rownames(beta) %in% dfII$Name, ]
 
 dim(beta_I)
 dim(beta_II)
 ```
 
 Calculate mean raw beta by probe chemistry.
+
 ```{r step07-mean-beta-by-chemistry}
-mean_of_beta_I <- apply(beta_I, 1, mean, na.rm=T)
-mean_of_beta_II <- apply(beta_II, 1, mean, na.rm=T)
+mean_of_beta_I <- apply(beta_I, 1, mean, na.rm = TRUE)
+mean_of_beta_II <- apply(beta_II, 1, mean, na.rm = TRUE)
 ```
 
 Estimate density of raw beta means by probe chemistry.
+
 ```{r step07-density-beta-by-chemistry}
-d_mean_of_beta_I <- density(mean_of_beta_I, na.rm=T)
-d_mean_of_beta_II <- density(mean_of_beta_II, na.rm=T)
+d_mean_of_beta_I <- density(mean_of_beta_I, na.rm = TRUE)
+d_mean_of_beta_II <- density(mean_of_beta_II, na.rm = TRUE)
 ```
 
 Calculate and estimate density of raw beta standard deviations.
-```{r step07-beta-sd-by-chemistry}
-sd_of_beta_I <- apply(beta_I, 1, sd, na.rm=T)
-sd_of_beta_II <- apply(beta_II, 1, sd, na.rm=T)
 
-d_sd_of_beta_I <- density(sd_of_beta_I, na.rm=T)
-d_sd_of_beta_II <- density(sd_of_beta_II, na.rm=T)
+```{r step07-beta-sd-by-chemistry}
+sd_of_beta_I <- apply(beta_I, 1, sd, na.rm = TRUE)
+sd_of_beta_II <- apply(beta_II, 1, sd, na.rm = TRUE)
+
+d_sd_of_beta_I <- density(sd_of_beta_I, na.rm = TRUE)
+d_sd_of_beta_II <- density(sd_of_beta_II, na.rm = TRUE)
 ```
+
+## 7.2 Normalization with preprocessNoob
+
 Normalize the raw RGChannelSet with preprocessNoob.
+
 ```{r step07-normalization}
 preprocessNoob_results <- preprocessNoob(RGset)
 ```
 
 Inspect the normalized object.
+
 ```{r step07-inspect-normalized-object}
-str(preprocessNoob_results)
 class(preprocessNoob_results)
+```
+
+```{r step07-inspect-normalized-structure, results="hide"}
 preprocessNoob_results
+str(preprocessNoob_results)
 ```
 
 Extract normalized beta and M values.
+
 ```{r step07-extract-normalized-beta-m}
 beta_preprocessNoob <- getBeta(preprocessNoob_results)
 M_preprocessNoob <- getM(preprocessNoob_results)
 
-head(beta_preprocessNoob)
 dim(beta_preprocessNoob)
 ```
 
-Save normalized objects for reproducibility.
-```{r step07-save-normalized-results}
-saveRDS(preprocessNoob_results, file=file.path(rdsDir, "preprocessNoob_results.rds"))
-saveRDS(beta_preprocessNoob, file=file.path(rdsDir, "beta_preprocessNoob.rds"))
-saveRDS(M_preprocessNoob, file=file.path(rdsDir, "M_preprocessNoob.rds"))
+```{r step07-inspect-normalized-beta-extra, results="hide"}
+head(beta_preprocessNoob)
 ```
 
+## 7.3 Normalized Beta Values by Probe Chemistry
+
 Split normalized beta values by probe chemistry.
+
 ```{r step07-split-normalized-beta-by-chemistry}
-beta_preprocessNoob_I <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfI$Name,]
-beta_preprocessNoob_II <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfII$Name,]
+beta_preprocessNoob_I <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfI$Name, ]
+beta_preprocessNoob_II <- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfII$Name, ]
 ```
 
 Calculate mean normalized beta values by probe chemistry.
+
 ```{r step07-mean-normalized-beta-by-chemistry}
-mean_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, mean, na.rm=T)
-mean_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, mean, na.rm=T)
+mean_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, mean, na.rm = TRUE)
+mean_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, mean, na.rm = TRUE)
 ```
 
 Estimate density of normalized beta means.
+
 ```{r step07-density-normalized-beta-by-chemistry}
-d_mean_of_beta_preprocessNoob_I <- density(mean_of_beta_preprocessNoob_I, na.rm=T)
-d_mean_of_beta_preprocessNoob_II <- density(mean_of_beta_preprocessNoob_II, na.rm=T)
+d_mean_of_beta_preprocessNoob_I <- density(mean_of_beta_preprocessNoob_I, na.rm = TRUE)
+d_mean_of_beta_preprocessNoob_II <- density(mean_of_beta_preprocessNoob_II, na.rm = TRUE)
 ```
 
 Calculate and estimate density of normalized beta standard deviations.
-```{r step07-normalized-beta-sd-by-chemistry}
-sd_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, sd, na.rm=T)
-sd_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, sd, na.rm=T)
 
-d_sd_of_beta_preprocessNoob_I <- density(sd_of_beta_preprocessNoob_I, na.rm=T)
-d_sd_of_beta_preprocessNoob_II <- density(sd_of_beta_preprocessNoob_II, na.rm=T)
+```{r step07-normalized-beta-sd-by-chemistry}
+sd_of_beta_preprocessNoob_I <- apply(beta_preprocessNoob_I, 1, sd, na.rm = TRUE)
+sd_of_beta_preprocessNoob_II <- apply(beta_preprocessNoob_II, 1, sd, na.rm = TRUE)
+
+d_sd_of_beta_preprocessNoob_I <- density(sd_of_beta_preprocessNoob_I, na.rm = TRUE)
+d_sd_of_beta_preprocessNoob_II <- density(sd_of_beta_preprocessNoob_II, na.rm = TRUE)
 ```
 
+## 7.4 Raw vs Normalized Six-panel Comparison
+
 Define colors for the raw and normalized beta boxplots.
+
 ```{r step07-define-boxplot-colors}
 pheno <- data.frame(pData(RGset))
-pheno$Group
 
-boxplot_col <- c(CTRL = "blue", DIS = "red")[as.character(pheno$Group)]
-boxplot_col
+type_col <- c("Type I" = "blue", "Type II" = "red")
+group_col <- c(CTRL = "violet", DIS = "orange")
+boxplot_col <- group_col[as.character(pheno$Group)]
 ```
 
 Compare raw and normalized beta values using plots.
-```{r step07-compare-beta-chemistry, message=FALSE, warning=FALSE}
+
+```{r step07-compare-beta-chemistry, message=FALSE, warning=FALSE, fig.width=14, fig.height=8, dpi=300}
 # Plot raw and normalized beta-value comparisons
-par(mfrow = c(2, 3), mar = c(4.5, 4.5, 3, 1), oma = c(1, 1, 1, 5))
+par(mfrow = c(2, 3), mar = c(7, 4.5, 3, 1), oma = c(1, 1, 1, 1))
 
-plot(d_mean_of_beta_I, col = "blue", main = "raw beta", xlim = c(0, 1), ylim = c(0, 5))
-lines(d_mean_of_beta_II, col="red")
-legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+# Panel 1: Raw beta mean density by probe type.
+plot(d_mean_of_beta_I, col = type_col["Type I"], main = "Raw beta")
+lines(d_mean_of_beta_II, col = type_col["Type II"])
+legend("topright", legend = names(type_col), col = type_col,
+       lty = 1, bty = "n", cex = 0.8)
 
-plot(d_sd_of_beta_I, col="blue", main="raw sd", xlim=c(0,0.6), ylim=c(0,60))
-lines(d_sd_of_beta_II, col = "red")
-legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+# Panel 2: Raw beta standard deviation density by probe type.
+plot(d_sd_of_beta_I, col = type_col["Type I"], main = "Raw SD")
+lines(d_sd_of_beta_II, col = type_col["Type II"])
+legend("topright", legend = names(type_col), col = type_col,
+       lty = 1, bty = "n", cex = 0.8)
 
-boxplot(beta, ylim = c(0, 1), col = boxplot_col, main = "raw beta", names=FALSE)
-axis( 1, at = seq_len(ncol(beta)), labels = seq_len(ncol(beta)), cex.axis = 0.8)
-legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue", "red"), bty = "n", cex = 0.8, xpd = NA)
+# Panel 3: Raw beta boxplot by sample group.
+boxplot(beta, ylim = c(0, 1), col = boxplot_col, main = "Raw beta",
+        names = FALSE)
+axis(1, at = seq_len(ncol(beta)), labels = seq_len(ncol(beta)), cex.axis = 0.8)
+usr <- par("usr")
+legend(x = mean(usr[1:2]), y = usr[3] - 0.16 * diff(usr[3:4]),
+       legend = names(group_col), xjust = 0.5, yjust = 1,
+       fill = group_col, title = "Samples", horiz = TRUE, bty = "n",
+       cex = 0.85, xpd = NA)
 
-plot(d_mean_of_beta_preprocessNoob_I, col="blue", main="preprocessNoob beta", xlim=c(0,1), ylim=c(0,5))
-lines(d_mean_of_beta_preprocessNoob_II, col = "red")
-legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+# Panel 4: Noob-normalized beta mean density by probe type.
+plot(d_mean_of_beta_preprocessNoob_I, col = type_col["Type I"],
+     main = "Noob beta")
+lines(d_mean_of_beta_preprocessNoob_II, col = type_col["Type II"])
+legend("topright", legend = names(type_col), col = type_col,
+       lty = 1, bty = "n", cex = 0.8)
 
-plot(d_sd_of_beta_preprocessNoob_I, col="blue", main="preprocessNoob sd", xlim=c(0,0.6), ylim=c(0,60))
-lines(d_sd_of_beta_preprocessNoob_II, col = "red")
-legend("topright", legend = c("Type I", "Type II"), col = c("blue", "red"), lty = 1, bty = "n", cex = 0.8)
+# Panel 5: Noob-normalized beta standard deviation density by probe type.
+plot(d_sd_of_beta_preprocessNoob_I, col = type_col["Type I"],
+     main = "Noob SD")
+lines(d_sd_of_beta_preprocessNoob_II, col = type_col["Type II"])
+legend("topright", legend = names(type_col), col = type_col,
+       lty = 1, bty = "n", cex = 0.8)
 
-boxplot(beta_preprocessNoob, ylim = c(0, 1), col = boxplot_col, main = "preprocessNoob beta", names=FALSE)
-axis( 1, at = seq_len(ncol(beta_preprocessNoob)), labels = seq_len(ncol(beta_preprocessNoob)), cex.axis = 0.8)
-legend( "right", inset = c(-0.4, 0), legend = c("CTRL", "DIS"), fill = c("blue", "red"), bty = "n", cex = 0.8, xpd = NA)
+# Panel 6: Noob-normalized beta boxplot by sample group.
+boxplot(beta_preprocessNoob, ylim = c(0, 1), col = boxplot_col,
+        main = "Noob beta", names = FALSE)
+axis(1, at = seq_len(ncol(beta_preprocessNoob)), labels = seq_len(ncol(beta_preprocessNoob)), cex.axis = 0.8)
+usr <- par("usr")
+legend(x = mean(usr[1:2]), y = usr[3] - 0.16 * diff(usr[3:4]),
+       legend = names(group_col), xjust = 0.5, yjust = 1,
+       fill = group_col, title = "Samples", horiz = TRUE, bty = "n",
+       cex = 0.85, xpd = NA)
 ```
 
-**Interpretation:** In the density plots, blue lines represent Type I probes and red lines represent Type II probes, while in the boxplots blue boxes represent CTRL samples and red boxes represent DIS samples. After normalization with `preprocessNoob`, the global beta-value distributions remained within the expected 0–1 range and preserved the typical bimodal methylation pattern. Type I and Type II probes still showed different density profiles, with Type I probes showing stronger peaks toward the unmethylated and highly methylated extremes, whereas Type II probes were shifted toward more intermediate beta values. The standard deviation density plots showed higher variability for Type II probes than for Type I probes.
-After normalization, the SD distribution changed slightly, suggesting that preprocessNoob modified part of the technical variability while preserving the overall beta-value structure.
+**Interpretation:** In the density plots, blue lines represent Type I probes and red lines represent Type II probes, while in the boxplots violet boxes represent CTRL samples and orange boxes represent DIS samples. The `preprocessNoob` method is appropriate for this dataset because it performs background correction and dye-bias correction while preserving the overall structure of the beta-value distributions. In the six-panel comparison, the raw and normalized beta-value densities remain within the expected 0 to 1 range and keep the typical bimodal methylation pattern. Type I and Type II probes still show different distributional shapes, which is expected for Illumina methylation arrays and does not by itself indicate a failed normalization. In the group-colored boxplots, CTRL and DIS samples have broadly comparable medians and interquartile ranges before and after normalization, without a strong group-specific distribution shift. This suggests that normalization did not introduce an obvious artificial separation between groups and that the normalized beta values are suitable for the downstream PCA and t-test analyses.
 
-The preprocessNoob method is highly appropriate for this specific dataset. Because our cohort is very small (only 8 samples), applying aggressive between-array normalizations (like preprocessQuantile, which forces all sample distributions to be identical) could over-correct the data and erase genuine biological differences. preprocessNoob is a within-array method that successfully performs background correction and dye-bias equalization without relying on large sample sizes. Furthermore, when comparing the boxplots colored by group (CTRL vs DIS) before and after normalization, the overall medians and interquartile ranges remain largely consistent. The overall distributions between the two groups do not show extreme, artifactual shifts, confirming that the samples are comparable and the normalization successfully preserved the core biological structure.
+---
 
-# Step 08. PCA on Normalized Beta Values 
-PCA evaluates global structure and potential confounders
-```{r load-data, message=FALSE, warning=FALSE}
-#load normalized beta values 
-beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
+# Step 08. PCA on Normalized Beta Values
 
-#load RGset object 
-load("results/rds/RGset_Report.RData")
+PCA evaluates global sample structure and helps check whether major variation follows disease group, sex, or Sentrix_ID/batch.
 
-# Extract sample information
+Extract sample information and prepare grouping variables for PCA plots. In the `RGset` metadata, the Sentrix_ID information from the sample sheet is stored in the `Slide` column, so we create a `Sentrix_ID` variable from `Slide` for the batch-colored PCA.
+
+```{r step08-sample-info}
 sample_info <- data.frame(pData(RGset))
+sample_info$Group <- factor(sample_info$Group)
+sample_info$Sex <- factor(sample_info$Sex)
+
+# In pData(RGset), Sentrix_ID is stored as Slide.
+sample_info$Sentrix_ID <- factor(sample_info$Slide)
 ```
 
-## Perform PCA 
-```{r pca-analysis}
-#Run PCA on normalized beta values
-pca_results <- prcomp(t(beta_preprocessNoob), scale.=TRUE)
-#Variance explained
+## 8.1 Perform PCA
+
+Run PCA on the transposed normalized beta matrix, because probes are rows and samples are columns.
+
+```{r step08-pca-analysis}
+pca_results <- prcomp(t(beta_preprocessNoob), scale. = TRUE)
+
 pca_var <- pca_results$sdev^2
 pca_var_explained <- pca_var / sum(pca_var)
+pca_var_cumulative <- cumsum(pca_var_explained)
+
+x_padding <- diff(range(pca_results$x[, "PC1"])) * 0.12
+y_padding <- diff(range(pca_results$x[, "PC2"])) * 0.12
+xlim_pca <- range(pca_results$x[, "PC1"]) + c(-x_padding, x_padding)
+ylim_pca <- range(pca_results$x[, "PC2"]) + c(-y_padding, y_padding)
 ```
 
-## Scree Plot
-**Interpretation**: PC1 dominates with 42.7% of variance, followed by PC2 at 20.4%. Together they capture ~63% of total variance, which is reasonable for an 8-sample methylation dataset. The steep drop after PC2 and gradual tapering afterward suggests the major sources of biological/technical variation are captured in the first two components.
+## 8.2 Scree Plot
 
+Plot the proportion of variance explained by the first eight principal components.
 
-```{r scree-plot, fig.width=8, fig.height=6}
+```{r step08-scree-plot, fig.width=8, fig.height=6}
 bp <- barplot(
   pca_var_explained[1:8],
   names.arg = paste0("PC", 1:8),
-  ylim = c(0, 0.5),
+  ylim = c(0, 1),
   main = "Variance Explained by Principal Components",
   xlab = "Principal Components",
-  ylab = "Proportion of Variance Explained"
+  ylab = "Proportion of Variance"
 )
 text(
   bp,
@@ -504,19 +630,48 @@ text(
   pos = 3,
   cex = 0.8
 )
+
+lines(
+  x = bp,
+  y = pca_var_cumulative[1:8],
+  type = "b",
+  pch = 16,
+  col = "red"
+)
+
+text(
+  bp,
+  pca_var_cumulative[1:8],
+  labels = paste0(round(pca_var_cumulative[1:8] * 100, 1), "%"),
+  pos = 1,
+  cex = 0.7,
+  col = "red"
+)
+
+legend(
+  x = bp[6],
+  y = 0.78,
+  legend = c("Variance explained", "Cumulative variance"),
+  fill = c("grey", NA),
+  border = c("black", NA),
+  lty = c(NA, 1),
+  pch = c(NA, 16),
+  col = c("black", "red"),
+  bty = "n"
+)
 ```
 
-## PCA Colored by Disease Group
+**Interpretation:** PC1 explains `r round(pca_var_explained[1] * 100, 1)`% of the variance and PC2 explains `r round(pca_var_explained[2] * 100, 1)`%, so the first two principal components capture about `r round(sum(pca_var_explained[1:2]) * 100, 1)`% of the total variation in the normalized beta values. The cumulative variance line shows how much total variation is captured as additional principal components are included. This indicates that a small number of major sources explain much of the sample-to-sample variability. The PCA is therefore useful for checking whether this variation follows disease group, sex, or Sentrix_ID/batch patterns.
 
-```{r pca-group, fig.width=8, fig.height=6}
+## 8.3 PCA Colored by Disease Group
 
-xlim_pca <- range(pca_results$x[, "PC1"]) + c(-50, 100)
-ylim_pca <- range(pca_results$x[, "PC2"]) + c(-50, 50)
+Color the PCA by disease group to check whether CTRL and DIS samples separate globally.
 
+```{r step08-pca-group, fig.width=8, fig.height=6}
 plot(
-  pca_results$x[,1],
-  pca_results$x[,2],
-  col = as.factor(sample_info$Group),
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
+  col = sample_info$Group,
   pch = 17,
   cex = 1.5,
   xlim = xlim_pca,
@@ -535,8 +690,8 @@ plot(
 )
 
 text(
-  pca_results$x[,1],
-  pca_results$x[,2],
+  pca_results$x[, "PC1"],
+  pca_results$x[, "PC2"],
   labels = sample_info$SampleID,
   pos = 3,
   cex = 0.8
@@ -544,19 +699,19 @@ text(
 
 legend(
   "topright",
-  legend = levels(as.factor(sample_info$Group)),
-  col = seq_along(levels(as.factor(sample_info$Group))),
+  legend = levels(sample_info$Group),
+  col = seq_along(levels(sample_info$Group)),
   pch = 17
 )
 ```
 
-**Interpretation**: When coloring the PCA by the biological group (CTRL vs DIS), the samples do not form distinct clusters and are intermixed across both primary principal components. This indicates that the disease status is not the primary driver of global methylation variance in this dataset. The relatively subtle epigenetic signature of the disease is being overshadowed by other factors capturing much larger chunks of the variance.
+**Interpretation:** When the PCA is colored by disease group, CTRL and DIS samples do not form two clearly separated clusters. Samples from both groups appear across the main PCA space, and some samples are separated from the rest regardless of group label. This suggests that disease status is not the dominant source of global methylation variation in this dataset. Any disease-associated methylation differences are therefore likely to be CpG-specific or subtle rather than visible as a strong genome-wide shift in the first two principal components.
 
-## PCA Colored by Sex
+## 8.4 PCA Colored by Sex
 
-```{r pca-sex, fig.width=8, fig.height=6}
-sample_info$Sex <- as.factor(sample_info$Sex)
+Color the PCA by sex to check whether sex contributes to the major sample structure.
 
+```{r step08-pca-sex, fig.width=8, fig.height=6}
 plot(
   pca_results$x[, "PC1"],
   pca_results$x[, "PC2"],
@@ -594,17 +749,17 @@ legend(
 )
 ```
 
-**Interpretation:** DNA methylation is profoundly influenced by biological sex, primarily due to X-chromosome inactivation in females and sex-specific global methylation patterns. Looking at our plot, the samples perfectly divide along the second principal component (PC2, the y-axis) according to their sex. Because our samples separate flawlessly by sex but not by group, it confirms that biological sex is a massive driver of variance in this dataset, greatly overshadowing the disease-related epigenetic signals.
+**Interpretation:** Coloring the PCA by sex shows that male and female samples contribute to the observed sample structure. The male samples tend to occupy distinct positions from several female samples, consistent with sex being an important biological source of methylation variation, partly because of sex-chromosome biology. However, the separation is not sufficient to explain all of the PCA structure by itself, so sex should be considered as a possible contributor rather than the only driver of variation.
 
-## PCA Colored by Batch (Slide)
+## 8.5 PCA Colored by Batch (Slide)
 
-```{r pca-slide, fig.width=8, fig.height=6}
-sample_info$Slide <- as.factor(sample_info$Slide)
+Color the PCA by Sentrix_ID, stored in `pData(RGset)` as `Slide`, to check possible slide or batch structure.
 
+```{r step08-pca-sentrix-id, fig.width=8, fig.height=6}
 plot(
   pca_results$x[, "PC1"],
   pca_results$x[, "PC2"],
-  col = sample_info$Slide,
+  col = sample_info$Sentrix_ID,
   pch = 17,
   cex = 1.5,
   xlim = xlim_pca,
@@ -632,74 +787,71 @@ text(
 
 legend(
   "topright",
-  legend = levels(sample_info$Slide),
-  col = seq_along(levels(sample_info$Slide)),
+  legend = levels(sample_info$Sentrix_ID),
+  col = seq_along(levels(sample_info$Sentrix_ID)),
   pch = 17
 )
 ```
 
-**Interpretation:** The array slide (represented by the Sentrix_ID column) is a purely technical variable. We check the data for technical "batch effects" by coloring the PCA by Slide. As seen in our plot, the samples distinctly split into two clusters along the first principal component (PC1, the x-axis) based strictly on which slide they were processed on. Because PC1 represents the largest source of variance in the entire dataset, this strongly indicates that a severe technical artifact (batch effect) is still present. This introduces that while preprocessNoob is excellent at correcting background fluorescence and dye bias, it does not completely eliminate slide-to-slide batch effects. In a full-scale study, an additional batch-correction algorithm (such as ComBat) would be required before proceeding to differential methylation testing.
+**Interpretation:** Coloring the PCA by Sentrix_ID shows that technical slide/batch information may contribute to the sample structure. Some samples sharing the same Sentrix_ID appear closer together, while other samples are separated more strongly along PC1 or PC2. This pattern suggests a possible batch effect, although it is not perfectly separated by slide for every sample. Since PC1 explains the largest fraction of variance, Sentrix_ID should be mentioned as a potential technical confounder. The downstream t-test results should therefore be interpreted cautiously, especially because the sample size is small and no additional batch-correction model was applied.
+
+---
 
 # Step 09. Differential Methylation Analysis with t-test
 
 Differential methylation analysis identifies CpG-specific changes associated with disease status. Here, probe-wise t-tests compare normalized beta values between CTRL and DIS samples.
 
-## Load Data
+Use the normalized beta values from Step 07 and the sample information prepared in Step 08.
 
-```{r load-dm-data}
-load("results/rds/RGset_Report.RData")
-
-beta_preprocessNoob <- readRDS(
-  "results/rds/beta_preprocessNoob.rds"
-)
-
-sample_info <- data.frame(
-  pData(RGset)
-)
-
+```{r step09-prepare-data}
 beta_matrix <- beta_preprocessNoob
 sample_data <- sample_info
 ```
 
-## Define Sample Groups: control and disease
+Identify CTRL and DIS samples for the t-test comparison.
 
-```{r define-groups}
+```{r step09-define-groups}
 control_samples <- sample_data$Group == "CTRL"
 disease_samples <- sample_data$Group == "DIS"
 ```
 
-## Calculate Mean Beta Values
+Calculate the mean beta value for each CpG probe in each group and compute the methylation difference.
 
-```{r mean-beta}
+```{r step09-mean-beta}
 mean_ctrl <- rowMeans(
-  beta_matrix[, control_samples]
+  beta_matrix[, control_samples],
+  na.rm = TRUE
 )
 
 mean_dis <- rowMeans(
-  beta_matrix[, disease_samples]
+  beta_matrix[, disease_samples],
+  na.rm = TRUE
 )
 
 delta_beta <- mean_dis - mean_ctrl
 ```
 
-## Perform Probe-wise t-Tests
+Define a t-test function for one CpG probe and apply it to every row of the beta matrix.
 
-```{r t-tests}
+```{r step09-t-tests}
+My_ttest_function <- function(probe_values) {
+  t_test <- t.test(
+    probe_values[control_samples],
+    probe_values[disease_samples]
+  )
+  return(t_test$p.value)
+}
+
 p_values <- apply(
   beta_matrix,
   1,
-  function(probe_values) {
-    t.test(
-      probe_values[control_samples],
-      probe_values[disease_samples]
-    )$p.value
-  }
+  My_ttest_function
 )
 ```
 
-## Create Results Table
+Combine group means, delta beta values, and nominal p-values into one results table.
 
-```{r results-table}
+```{r step09-results-table}
 t_test_results <- data.frame(
   ProbeID = rownames(beta_matrix),
   Mean_CTRL = mean_ctrl,
@@ -708,76 +860,102 @@ t_test_results <- data.frame(
   P_Value = p_values
 )
 
+Nominal_Significant_Probes <- sum(t_test_results$P_Value <= 0.05, na.rm = TRUE)
+
 head(t_test_results)
+Nominal_Significant_Probes
 ```
 
-**Interpretation:** The probe-wise t-test produced results for 485,512 CpG probes. Using nominal p-values, 11,928 probes have `P_Value <= 0.05`; however, these results should be considered preliminary because multiple testing correction has not yet been applied. Since hundreds of thousands of CpG sites are tested simultaneously, nominally significant probes may include false positives, so Bonferroni and Benjamini-Hochberg correction will be needed in Step 10.
+**Interpretation:** The probe-wise t-test produced results for `r nrow(t_test_results)` CpG probes. At the nominal threshold of `P_Value <= 0.05`, `r Nominal_Significant_Probes` probes are significant before correction. These nominal results suggest candidate CpGs that may differ between CTRL and DIS samples, but they cannot be treated as final significant findings because hundreds of thousands of tests were performed. Multiple testing correction is therefore required in Step 10.
 
-## Save Results
-
-```{r save-results}
-write.csv(
-  t_test_results,
-  "results/tables/step09_t_test_results.csv",
-  row.names = FALSE
-)
-```
+---
 
 # Step 10. Multiple Testing Correction
 
-In Step 09, we performed independent t-tests across approximately 450,000 CpG probes to identify differentially methylated probes between the Control (CTRL) and Disease (DIS) groups. Using a nominal p-value threshold of 0.05 without adjustment would lead to tens of thousands of false positives due to the sheer volume of tests being conducted. To control for this, we applied two multiple testing correction methods: Bonferroni (which strictly controls the Family-Wise Error Rate) and Benjamini-Hochberg (which controls the False Discovery Rate, or FDR).
+Multiple testing correction is applied to the t-test p-values because the analysis tests hundreds of thousands of CpG probes. We compare the nominal p-values with Bonferroni and Benjamini-Hochberg adjusted p-values using the Team 1 threshold of 0.05.
 
-```{r step10-multiple-testing, message=FALSE, warning=FALSE}
-# Load the t-test results from Step 09
-t_test_results <- read.csv("results/tables/step09_t_test_results.csv")
+Define the significance threshold assigned to Team 1.
 
-# 1. Apply Bonferroni correction
-t_test_results$P_Bonferroni <- p.adjust(t_test_results$P_Value, method = "bonferroni")
-
-# 2. Apply Benjamini-Hochberg (BH / FDR) correction
-t_test_results$P_FDR <- p.adjust(t_test_results$P_Value, method = "BH")
-
-# Define the significance threshold assigned in the pipeline
+```{r step10-threshold, message=FALSE, warning=FALSE}
 alpha <- 0.05
-
-# Count the number of significant probes for each method
-sig_nominal <- sum(t_test_results$P_Value <= alpha, na.rm = TRUE)
-sig_bonferroni <- sum(t_test_results$P_Bonferroni <= alpha, na.rm = TRUE)
-sig_fdr <- sum(t_test_results$P_FDR <= alpha, na.rm = TRUE)
-
-# Create a summary table to answer the pipeline questions
-correction_summary <- data.frame(
-  Method = c("Nominal P-Value", "Bonferroni Correction", "BH (FDR) Correction"),
-  Significant_Probes = c(sig_nominal, sig_bonferroni, sig_fdr)
-)
-
-print(correction_summary)
-
-# Save the updated dataframe containing adjusted p-values for Steps 11 and 12
-write.csv(t_test_results, "results/tables/step10_t_test_results_adjusted.csv", row.names = FALSE)
+alpha
 ```
 
-### **Interpretation and Discussion (Step 10)**
-As demonstrated by the output table, we identify thousands of probes with a nominal p-value below 0.05 before applying any correction. However, after applying the rigorous Bonferroni and Benjamini-Hochberg corrections, zero probes remain significant at the 0.05 threshold. 
+Apply Bonferroni and Benjamini-Hochberg corrections to the t-test p-values.
 
-This stark drop-off highlights a crucial concept in high-dimensional data analysis: while many probes appear significant initially, most of these results are likely due to chance when running 450,000 simultaneous tests. 
+```{r step10-adjust-pvalues, message=FALSE, warning=FALSE}
+t_test_results$P_Bonferroni <- p.adjust(t_test_results$P_Value, method = "bonferroni")
+t_test_results$P_BH <- p.adjust(t_test_results$P_Value, method = "BH")
 
-Furthermore, the lack of genome-wide significant results post-correction could be attributed to a few biological and technical factors:
-* **Subtle Biological Effect:** The epigenetic differences between the CTRL and DIS groups might be highly localized or have very small effect sizes, making them hard to detect without a massive sample size.
-* **Normalization Limitations:** As we used `preprocessNoob`—which is considered a "light" background correction method—uncorrected technical noise or batch effects might be swamping the true biological signal. A more robust normalization approach, such as `preprocessQuantile` (which forces distributions to be identical across arrays), might yield more statistically significant probes post-correction.
+head(t_test_results[, c("ProbeID", "P_Value", "P_Bonferroni", "P_BH")])
+```
+
+Visualize the distribution of nominal and corrected p-values.
+
+```{r step10-pvalue-boxplot, message=FALSE, warning=FALSE, fig.width=7, fig.height=5, dpi=300}
+boxplot(
+  t_test_results[, c("P_Value", "P_Bonferroni", "P_BH")],
+  names = c("Nominal", "Bonferroni", "BH"),
+  col = c("grey80", "lightblue", "lightgreen"),
+  ylab = "P-value",
+  main = "Nominal and Corrected P-values"
+)
+```
+
+Count how many probes are significant before and after multiple testing correction.
+
+```{r step10-correction-summary, message=FALSE, warning=FALSE}
+sig_nominal <- sum(t_test_results$P_Value <= alpha, na.rm = TRUE)
+sig_bonferroni <- sum(t_test_results$P_Bonferroni <= alpha, na.rm = TRUE)
+sig_bh <- sum(t_test_results$P_BH <= alpha, na.rm = TRUE)
+
+correction_summary <- data.frame(
+  Method = c("Nominal p-value", "Bonferroni", "Benjamini-Hochberg"),
+  Threshold = alpha,
+  Significant_Probes = c(sig_nominal, sig_bonferroni, sig_bh)
+)
+
+correction_summary
+```
+
+**Interpretation:** The t-test identified `r sig_nominal` probes with nominal `P_Value <= 0.05`. However, after correcting for the `r nrow(t_test_results)` simultaneous CpG-level tests, `r sig_bonferroni` probes remained significant using Bonferroni correction and `r sig_bh` probes remained significant using Benjamini-Hochberg correction at the 0.05 threshold.
+
+This result shows why multiple testing correction is essential in methylation-array analysis. With hundreds of thousands of CpGs tested, some small p-values can occur by chance. Bonferroni is very strict because it controls the family-wise error rate, while Benjamini-Hochberg controls the false discovery rate and is usually less conservative. In this dataset, neither correction retained significant probes, suggesting that the disease-associated signal is weak relative to the small sample size, variability, and possible technical structure. Therefore, the nominally significant probes should be treated as exploratory candidates only, not as genome-wide significant differentially methylated probes.
 
 ---
 
 # Step 11. Volcano and Manhattan Plots
 
-Because our stringent FDR correction eliminated our statistically significant probes, we must rely on nominal p-values combined with the biological magnitude of change (Delta Beta) to identify "suggestive" loci for further exploratory analysis. We visualize these results using Volcano and Manhattan plots.
+Volcano and Manhattan plots are used to visualize the differential methylation results from the t-test. Since no probes remained significant after multiple testing correction, these plots are interpreted using nominal p-values only as exploratory evidence.
 
-### Volcano Plot
+### 11.1 Volcano Plot
 
-The Volcano plot contrasts the biological effect size (x-axis, representing the Delta Beta or methylation difference) against statistical significance (y-axis, representing the negative log10 of the nominal p-value). We apply a threshold of a 10% methylation difference (|Delta Beta| > 0.1) alongside a nominal p-value < 0.05 to highlight biologically interesting probes.
+The volcano plot compares the methylation effect size (`Delta_Beta`, DIS - CTRL) with the nominal statistical evidence (`-log10(P_Value)`). We highlight exploratory candidate probes using nominal `P_Value <= 0.05` and `|Delta_Beta| > 0.1`.
 
-```{r step11-volcano-plot, fig.width=8, fig.height=6, message=FALSE, warning=FALSE}
-# Plot the Volcano Plot
+Prepare the exploratory candidates and produce the volcano plot.
+
+```{r step11-volcano-plot, fig.width=8, fig.height=6, dpi=300, message=FALSE, warning=FALSE}
+delta_beta_threshold <- 0.1
+
+hyper <- which(
+  t_test_results$Delta_Beta > delta_beta_threshold &
+    t_test_results$P_Value <= alpha
+)
+
+hypo <- which(
+  t_test_results$Delta_Beta < -delta_beta_threshold &
+    t_test_results$P_Value <= alpha
+)
+
+volcano_summary <- data.frame(
+  Category = c("Hypermethylated in DIS", "Hypomethylated in DIS"),
+  Delta_Beta_Threshold = c(delta_beta_threshold, -delta_beta_threshold),
+  P_Value_Threshold = alpha,
+  Candidate_Probes = c(length(hyper), length(hypo))
+)
+
+volcano_summary
+
 plot(
   x = t_test_results$Delta_Beta,
   y = -log10(t_test_results$P_Value),
@@ -786,120 +964,241 @@ plot(
   col = "darkgray",
   xlab = "Delta Beta (DIS - CTRL)",
   ylab = "-log10(Nominal P-value)",
-  main = "Volcano Plot of DNA Methylation",
-  xlim = c(-max(abs(t_test_results$Delta_Beta), na.rm=TRUE), 
-            max(abs(t_test_results$Delta_Beta), na.rm=TRUE))
+  main = "Volcano Plot of DNA Methylation Differences",
+  xlim = c(
+    -max(abs(t_test_results$Delta_Beta), na.rm = TRUE),
+    max(abs(t_test_results$Delta_Beta), na.rm = TRUE)
+  )
 )
 
-# Highlight significant targets (Nominal P <= 0.05 and |Delta Beta| > 0.1)
-hyper <- which(t_test_results$Delta_Beta > 0.1 & t_test_results$P_Value <= 0.05)
-hypo <- which(t_test_results$Delta_Beta < -0.1 & t_test_results$P_Value <= 0.05)
+points(
+  t_test_results$Delta_Beta[hyper],
+  -log10(t_test_results$P_Value)[hyper],
+  col = "red",
+  pch = 16,
+  cex = 0.6
+)
 
-points(t_test_results$Delta_Beta[hyper], -log10(t_test_results$P_Value)[hyper], col = "red", pch = 16, cex = 0.6)
-points(t_test_results$Delta_Beta[hypo], -log10(t_test_results$P_Value)[hypo], col = "blue", pch = 16, cex = 0.6)
+points(
+  t_test_results$Delta_Beta[hypo],
+  -log10(t_test_results$P_Value)[hypo],
+  col = "blue",
+  pch = 16,
+  cex = 0.6
+)
 
-# Add horizontal and vertical lines for thresholds
-abline(h = -log10(0.05), col = "black", lty = 2)
-abline(v = c(-0.1, 0.1), col = "black", lty = 2)
+abline(h = -log10(alpha), col = "black", lty = 2)
+abline(v = c(-delta_beta_threshold, delta_beta_threshold), col = "black", lty = 2)
 
-legend("topright", 
-       legend = c("Hypermethylated", "Hypomethylated"),
-       col = c("red", "blue", "darkgray"), 
-       pch = 16, cex = 0.8, bty="n")
+legend(
+  "topright",
+  legend = c("Hypermethylated in DIS", "Hypomethylated in DIS"),
+  col = c("red", "blue"),
+  pch = 16,
+  cex = 0.8,
+  bty = "n"
+)
 ```
 
-**Interpretation:** The Volcano plot allows us to immediately spot probes that undergo severe hypermethylation (red dots, top right) or hypomethylation (blue dots, top left) in the disease state compared to the controls. While these may not survive FDR correction, loci showing a high Delta Beta are primary candidates for targeted validation studies, as large methylation swings are often biologically impactful regardless of array-wide statistical penalties.
+**Interpretation:** The volcano plot shows probes with both nominal statistical evidence and larger methylation differences between DIS and CTRL samples. Red points represent probes with higher methylation in DIS samples, while blue points represent probes with lower methylation in DIS samples. Using the exploratory thresholds, there are `r length(hyper)` hypermethylated and `r length(hypo)` hypomethylated candidate probes. These loci may be useful for follow-up or visualization, but they should not be reported as genome-wide significant because none remained significant after Bonferroni or Benjamini-Hochberg correction.
 
-### Manhattan Plot
+### 11.2 Manhattan Plot
 
-The Manhattan plot maps our nominal p-values across the genomic coordinates (Chromosomes 1-22, X, and Y). This allows us to look for "hotspots"—specific genomic regions or chromosomes where differential methylation is clustered.
+The Manhattan plot displays the nominal t-test p-values across genomic coordinates. To build the plot, genomic annotation is merged with the t-test results using the CpG probe ID.
 
-```{r step11-manhattan-plot, fig.width=10, fig.height=6, message=FALSE, warning=FALSE}
-library(qqman)
+Add chromosome and position information to the t-test results and produce the Manhattan plot.
 
-# Load the normalized object to extract genomic annotations
-preprocessNoob_results <- readRDS("results/rds/preprocessNoob_results.rds")
+```{r step11-manhattan-plot, fig.width=10, fig.height=6, dpi=300, message=FALSE, warning=FALSE}
 ann <- getAnnotation(preprocessNoob_results)
 
-# Extract locations into a dataframe
-locations <- data.frame(ProbeID = rownames(ann), CHR = ann$chr, MAPINFO = ann$pos)
+locations <- data.frame(
+  ProbeID = rownames(ann),
+  CHR = ann$chr,
+  MAPINFO = ann$pos
+)
 
-# Merge coordinates with our t-test results
 manhattan_data <- merge(t_test_results, locations, by = "ProbeID")
 
-# Clean CHR column to be numeric for qqman (1-22, 23 for X, 24 for Y)
+order_chr <- c(as.character(1:22), "X", "Y")
 manhattan_data$CHR <- gsub("chr", "", manhattan_data$CHR)
-manhattan_data$CHR[manhattan_data$CHR == "X"] <- 23
-manhattan_data$CHR[manhattan_data$CHR == "Y"] <- 24
+manhattan_data$CHR <- factor(manhattan_data$CHR, levels = order_chr)
 manhattan_data$CHR <- as.numeric(manhattan_data$CHR)
 
-manhattan_data <- manhattan_data[!is.na(manhattan_data$CHR) & !is.na(manhattan_data$P_Value), ]
+manhattan_data <- manhattan_data[
+  !is.na(manhattan_data$CHR) &
+    !is.na(manhattan_data$MAPINFO) &
+    !is.na(manhattan_data$P_Value),
+]
 
-# Plot the Manhattan Plot
+head(manhattan_data[, c("ProbeID", "CHR", "MAPINFO", "P_Value")])
+
 manhattan(
   manhattan_data,
   chr = "CHR",
   bp = "MAPINFO",
   snp = "ProbeID",
   p = "P_Value",
-  col = c("gray50", "gray80"),
-  suggestiveline = FALSE, 
+  col = rainbow(length(order_chr)),
+  suggestiveline = -log10(0.00001), 
   genomewideline = FALSE,
+  annotatePval = 0.00001,
   main = "Manhattan Plot of Epigenome-Wide Association",
   ylab = "-log10(Nominal P-value)"
 )
 ```
 
-**Interpretation:** If differential methylation is randomly scattered due to technical noise, the Manhattan plot will look like a uniform band across all chromosomes. On the contrary, if the disease state strongly affects specific genes or genomic regions, therefore, we expect to see distinct vertical "towers" of highly significant points rising above the background.
+**Interpretation:** The Manhattan plot displays the nominal t-test p-values across genomic coordinates. The points are broadly distributed across chromosomes, with several local peaks reaching low nominal p-values. However, because no genome-wide or FDR-significant probes were identified after correction, these peaks should be interpreted as suggestive rather than definitive disease-associated regions. The plot is useful for visualizing where the strongest nominal signals occur, but it does not provide corrected-significant genomic loci in this dataset.
 
 ---
 
 # Step 12. Heatmap of the Top 100 CpGs
 
-To visually assess whether the disease signature is distinct from the control signature, we isolated the top 100 most significant probes (based on the lowest nominal p-values) and generated a heatmap. We applied unsupervised hierarchical clustering to both the probes (rows) and the samples (columns).
+To visualize the strongest candidate methylation patterns, we select the top 100 CpG probes ranked by nominal t-test p-value. These probes are used for hierarchical clustering of both probes and samples.
 
-```{r step12-heatmap, fig.width=8, fig.height=8, message=FALSE, warning=FALSE}
-library(gplots)
+Select the top 100 CpG probes ranked by nominal p-value.
 
-# Load necessary data
-beta_preprocessNoob <- readRDS("results/rds/beta_preprocessNoob.rds")
-load("results/rds/RGset_Report.RData")
-pheno <- data.frame(pData(RGset))
-
-# Sort the results by the lowest nominal p-value to extract the top 100 probes
+```{r step12-top100-probes, message=FALSE, warning=FALSE}
 top_100_results <- t_test_results[order(t_test_results$P_Value), ][1:100, ]
 top_100_probes <- top_100_results$ProbeID
 
-# Subset the normalized beta matrix to include only these 100 probes
-beta_top100 <- beta_preprocessNoob[top_100_probes, ]
-
-# Define column colors based on sample group (CTRL vs DIS)
-group_colors <- ifelse(pheno$Group == "CTRL", "blue", "red")
-
-# Generate the heatmap using complete linkage
-heatmap.2(
-  as.matrix(beta_top100),
-  main = "Top 100 Differentially Methylated CpGs",
-  trace = "none",              
-  col = bluered(100),          
-  scale = "none",              
-  dendrogram = "both",         
-  ColSideColors = group_colors,
-  margins = c(10, 5),          
-  cexCol = 0.8,
-  labRow = FALSE               
-)
-
-# Add a legend for the column side colors
-legend("topright", 
-       legend = levels(as.factor(pheno$Group)), 
-       fill = c("blue", "red"), 
-       border = FALSE, 
-       bty = "n", 
-       cex = 0.8)
+head(top_100_results)
 ```
 
-### **Interpretation and Final Conclusion (Step 12)**
-The heatmap provides a crucial sanity check for our data structure. Look closely at the dendrogram (the clustering tree) at the top of the columns:
-* **If the clustering is successful:** The tree will strictly separate the blue markers (CTRL) from the red markers (DIS) into two distinct branches. This means that, despite the lack of genome-wide strict FDR significance, these top 100 loci possess a strong, coordinated epigenetic signature capable of differentiating a diseased sample from a healthy one. 
-* **If the clustering is mixed:** If CTRL and DIS samples intermingle on the dendrogram branches, it implies that the top 100 probes are capturing individual patient heterogeneity, batch effects, or random noise rather than a unifying disease mechanism. 
+Extract the normalized beta values for these probes and prepare the group color annotation.
+
+```{r step12-heatmap-input, message=FALSE, warning=FALSE}
+beta_top100 <- beta_preprocessNoob[top_100_probes, ]
+input_heatmap <- as.matrix(beta_top100)
+
+heatmap_group_colors <- c(CTRL = "royalblue", DIS = "orange")
+colorbar <- heatmap_group_colors[as.character(sample_info$Group)]
+heatmap_palette <- colorRampPalette(c("green", "black", "red"))(100)
+
+dim(input_heatmap)
+```
+
+### 12.1 Complete Linkage Heatmap
+
+Produce the heatmap using complete linkage clustering.
+
+```{r step12-heatmap-complete, fig.width=8, fig.height=8, dpi=300, message=FALSE, warning=FALSE}
+heatmap.2(
+  input_heatmap,
+  col = heatmap_palette,
+  Rowv = TRUE,
+  Colv = TRUE,
+  dendrogram = "both",
+  key = TRUE,
+  ColSideColors = colorbar,
+  density.info = "none",
+  trace = "none",
+  scale = "none",
+  symm = FALSE,
+  margins = c(10, 8),
+  cexCol = 0.8,
+  cexRow = 0.35,
+  labRow = rownames(input_heatmap),
+  main = "Top 100 CpGs - Complete Linkage"
+)
+
+legend(
+  "topright",
+  legend = names(heatmap_group_colors),
+  fill = heatmap_group_colors,
+  border = FALSE,
+  bty = "n",
+  cex = 0.8
+)
+```
+
+### 12.2 Single Linkage Heatmap
+
+Produce the heatmap using single linkage clustering.
+
+```{r step12-heatmap-single, fig.width=8, fig.height=8, dpi=300, message=FALSE, warning=FALSE}
+heatmap.2(
+  input_heatmap,
+  col = heatmap_palette,
+  Rowv = TRUE,
+  Colv = TRUE,
+  hclustfun = function(x) hclust(x, method = "single"),
+  dendrogram = "both",
+  key = TRUE,
+  ColSideColors = colorbar,
+  density.info = "none",
+  trace = "none",
+  scale = "none",
+  symm = FALSE,
+  margins = c(10, 8),
+  cexCol = 0.8,
+  cexRow = 0.35,
+  labRow = rownames(input_heatmap),
+  main = "Top 100 CpGs - Single Linkage"
+)
+
+legend(
+  "topright",
+  legend = names(heatmap_group_colors),
+  fill = heatmap_group_colors,
+  border = FALSE,
+  bty = "n",
+  cex = 0.8
+)
+```
+
+### 12.3 Average Linkage Heatmap
+
+Produce the heatmap using average linkage clustering.
+
+```{r step12-heatmap-average, fig.width=8, fig.height=8, dpi=300, message=FALSE, warning=FALSE}
+heatmap.2(
+  input_heatmap,
+  col = heatmap_palette,
+  Rowv = TRUE,
+  Colv = TRUE,
+  hclustfun = function(x) hclust(x, method = "average"),
+  dendrogram = "both",
+  key = TRUE,
+  ColSideColors = colorbar,
+  density.info = "none",
+  trace = "none",
+  scale = "none",
+  symm = FALSE,
+  margins = c(10, 8),
+  cexCol = 0.8,
+  cexRow = 0.35,
+  labRow = rownames(input_heatmap),
+  main = "Top 100 CpGs - Average Linkage"
+)
+
+legend(
+  "topright",
+  legend = names(heatmap_group_colors),
+  fill = heatmap_group_colors,
+  border = FALSE,
+  bty = "n",
+  cex = 0.8
+)
+```
+
+**Interpretation:** The three heatmaps show the methylation patterns of the top 100 probes selected by nominal p-value using complete, single, and average linkage clustering. Comparing the three clustering methods helps evaluate whether the sample grouping pattern is stable or depends on the clustering method. If CTRL and DIS samples show similar column clustering across the three heatmaps, this supports a consistent group-associated pattern among the strongest nominal candidate probes. If the sample clustering changes substantially between linkage methods, the pattern should be interpreted more cautiously.
+
+In all cases, these heatmaps remain exploratory because the probes were selected using nominal p-values, and Step 10 showed that no CpG remained significant after Bonferroni or Benjamini-Hochberg correction. Therefore, the heatmaps may highlight candidate group-associated methylation structure, but they do not override the multiple-testing result.
+
+---
+
+# Conclusion
+
+This report completed the required Team 1 workflow for the Illumina 450K methylation array dataset. The raw Red and Green fluorescence values were inspected for the assigned address, raw methylated and unmethylated signals were converted into `MSet.raw`, and quality control was performed using median signal intensities, negative controls, and detection p-values. The detection p-value results indicated a low fraction of failed probe-sample tests, supporting retention of the samples for downstream analysis.
+
+Normalization was performed with the assigned `preprocessNoob` method. The raw and normalized beta-value comparisons showed expected methylation distributions and no obvious normalization-induced separation between CTRL and DIS samples. PCA suggested that disease group was not the dominant source of global methylation variation, while sex and Sentrix_ID/slide information may contribute to the observed sample structure.
+
+Probe-wise t-tests identified nominally significant CpG candidates between CTRL and DIS samples, but no probes remained significant after Bonferroni or Benjamini-Hochberg correction at the 0.05 threshold. Therefore, the volcano plot, Manhattan plot, and heatmaps should be interpreted as exploratory visualizations of candidate methylation patterns rather than evidence of genome-wide significant differentially methylated probes. Overall, the analysis fulfills the assigned pipeline and provides a reproducible exploratory summary of the dataset, while indicating that a larger study or a model including relevant covariates would be needed to confirm any candidate disease-associated methylation signals.
+
+---
+
+# Code and Data Availability
+
+The source code, tracked input files, intermediate R objects, tables, figures, and rendered report for this project are available in the Team 1 GitHub repository:
+
+Bayat, F., Eter, T., Golshani, S. P., Heidari, A., Ibrahim, M. A. M. M., Parga Najera, H. E., Rahmani, B., & Zanjaniha, S. (2026). *Team 1 final project: DNA methylation analysis of CTRL and DIS samples using Illumina HumanMethylation450K arrays*. DNA & RNA Dynamics course, Alma Mater Studiorum - Universita di Bologna. GitHub repository: [Parganini/DRD-Final-Project-Team1](https://github.com/Parganini/DRD-Final-Project-Team1).
