@@ -1070,7 +1070,8 @@ report_saved("Figure", file.path(figuresDir, "step11_manhattan_plot.png"))
 cat("\n--- Running Step 12: Heatmap of Top 100 CpGs ---\n")
 
 ### Select the top 100 CpG probes ranked by nominal t-test p-value.
-top_100_results <- t_test_results[order(t_test_results$P_Value), ][1:100, ]
+nominal_t_test_results <- t_test_results[t_test_results$P_Value <= alpha, ]
+top_100_results <- nominal_t_test_results[order(nominal_t_test_results$P_Value), ][1:100, ]
 top_100_probes <- top_100_results$ProbeID
 
 cat("Top 100 CpGs selected by nominal p-value for heatmaps:\n")

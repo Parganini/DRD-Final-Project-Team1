@@ -1058,7 +1058,8 @@ To visualize the strongest candidate methylation patterns, we select the top 100
 Select the top 100 CpG probes ranked by nominal p-value.
 
 ```{r step12-top100-probes, message=FALSE, warning=FALSE}
-top_100_results <- t_test_results[order(t_test_results$P_Value), ][1:100, ]
+nominal_t_test_results <- t_test_results[t_test_results$P_Value <= alpha, ]
+top_100_results <- nominal_t_test_results[order(nominal_t_test_results$P_Value), ][1:100, ]
 top_100_probes <- top_100_results$ProbeID
 
 head(top_100_results)
@@ -1181,7 +1182,7 @@ legend(
 )
 ```
 
-**Interpretation:** The three heatmaps show the methylation patterns of the top 100 probes selected by nominal p-value using complete, single, and average linkage clustering. Comparing the three clustering methods helps evaluate whether the sample grouping pattern is stable or depends on the clustering method. If CTRL and DIS samples show similar column clustering across the three heatmaps, this supports a consistent group-associated pattern among the strongest nominal candidate probes. If the sample clustering changes substantially between linkage methods, the pattern should be interpreted more cautiously.
+**Interpretation:** The heatmaps show the methylation patterns of the top 100 nominally significant probes. In the complete-linkage heatmap, CTRL and DIS samples form a clear column-level separation, suggesting that the strongest nominal probes capture group-associated methylation structure. Comparing the three clustering methods helps evaluate whether the sample grouping pattern is stable or depends on the clustering method. If CTRL and DIS samples show similar column clustering across the three heatmaps, this supports a consistent group-associated pattern among the strongest nominal candidate probes. If the sample clustering changes substantially between linkage methods, the pattern should be interpreted more cautiously.
 
 In all cases, these heatmaps remain exploratory because the probes were selected using nominal p-values, and Step 10 showed that no CpG remained significant after Bonferroni or Benjamini-Hochberg correction. Therefore, the heatmaps may highlight candidate group-associated methylation structure, but they do not override the multiple-testing result.
 
