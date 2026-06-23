@@ -166,7 +166,7 @@ df_summary_probes <- data.frame(
 df_summary_probes
 ```
 
-Address `42796479` corresponds to the **AddressA (unmethylated)** position of probe **cg10602367**, a **Type I, Red-channel** probe. Type I probes use a single color channel, so the Green fluorescence values for this address are near background levels across all samples, while Red fluorescence varies between samples — reflecting biological differences in signal intensity at this CpG site.
+Address `42796479` corresponds to the **AddressA (unmethylated)** position of probe **cg10602367**, a **Type I, Red-channel** probe. Type I probes use a single color channel, so the Green fluorescence values for this address are near background levels across all samples, while Red fluorescence varies between samples. This confirms that the assigned address is measured primarily in the Red channel; the sample-to-sample differences should be interpreted cautiously because raw fluorescence can reflect both biological and technical variation.
 
 ---
 
