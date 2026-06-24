@@ -1634,7 +1634,9 @@ Eduardo Parga Najera, Bita Rahmani, Shayan Zanjaniha</h4>
 <div id="TOC">
 <ul>
 <li><a href="#introduction" id="toc-introduction">Introduction</a></li>
-<li><a href="#methodology" id="toc-methodology">Methodology</a></li>
+<li><a href="#analysis-workflow" id="toc-analysis-workflow">Analysis
+Workflow</a>
+<ul>
 <li><a href="#step-00.-setup" id="toc-step-00.-setup">Step 00.
 Setup</a></li>
 <li><a href="#step-01.-data-import-and-rgchannelset-creation" id="toc-step-01.-data-import-and-rgchannelset-creation">Step 01. Data
@@ -1698,6 +1700,7 @@ Top 100 CpGs</a>
 <li><a href="#single-linkage-heatmap" id="toc-single-linkage-heatmap">12.2 Single Linkage Heatmap</a></li>
 <li><a href="#average-linkage-heatmap" id="toc-average-linkage-heatmap">12.3 Average Linkage Heatmap</a></li>
 </ul></li>
+</ul></li>
 <li><a href="#conclusion" id="toc-conclusion">Conclusion</a></li>
 <li><a href="#code-and-data-availability" id="toc-code-and-data-availability">Code and Data Availability</a></li>
 </ul>
@@ -1734,12 +1737,11 @@ involves hundreds of thousands of CpG-level tests.</p>
 </ul>
 <hr />
 </div>
-<div id="methodology" class="section level1">
-<h1>Methodology</h1>
+<div id="analysis-workflow" class="section level1">
+<h1>Analysis Workflow</h1>
 <hr />
-</div>
-<div id="step-00.-setup" class="section level1">
-<h1>Step 00. Setup</h1>
+<div id="step-00.-setup" class="section level2">
+<h2>Step 00. Setup</h2>
 <p>Clean the workspace before starting the analysis.</p>
 <pre class="r"><code>rm(list = ls())</code></pre>
 <p>Load all packages used by the complete workflow.</p>
@@ -1755,8 +1757,8 @@ tablesDir &lt;- &quot;results/tables&quot;
 figuresDir &lt;- &quot;results/figures&quot;</code></pre>
 <hr />
 </div>
-<div id="step-01.-data-import-and-rgchannelset-creation" class="section level1">
-<h1>Step 01. Data Import and RGChannelSet Creation</h1>
+<div id="step-01.-data-import-and-rgchannelset-creation" class="section level2">
+<h2>Step 01. Data Import and RGChannelSet Creation</h2>
 <p>Check the raw data folder and read the sample sheet.</p>
 <pre class="r"><code>list.files(baseDir)</code></pre>
 <pre><code>##  [1] &quot;GSM5319592_200121140049_R01C02_Grn.idat&quot;
@@ -1825,8 +1827,8 @@ fluorescence intensities for all samples into an
 <code>RGChannelSet</code> object called <code>RGset</code>.</p>
 <hr />
 </div>
-<div id="step-02.-red-and-green-fluorescence-channels" class="section level1">
-<h1>Step 02. Red and Green Fluorescence Channels</h1>
+<div id="step-02.-red-and-green-fluorescence-channels" class="section level2">
+<h2>Step 02. Red and Green Fluorescence Channels</h2>
 <p>Extract the raw Red and Green fluorescence intensity matrices from
 <code>RGset</code>. Each matrix has one row per probe address and one
 column per sample.</p>
@@ -1850,8 +1852,8 @@ dim(Green)</code></pre>
 </div>
 <hr />
 </div>
-<div id="step-03.-team-1-address-check" class="section level1">
-<h1>Step 03. Team 1 Address Check</h1>
+<div id="step-03.-team-1-address-check" class="section level2">
+<h2>Step 03. Team 1 Address Check</h2>
 <p>Define the Team 1 address and look it up in the Type I and Type II
 probe information tables.</p>
 <pre class="r"><code>TARGET_ADDRESS &lt;- &quot;42796479&quot;
@@ -1917,8 +1919,8 @@ interpreted cautiously because raw fluorescence can reflect both
 biological and technical variation.</p>
 <hr />
 </div>
-<div id="step-04.-methylset-creation" class="section level1">
-<h1>Step 04. MethylSet Creation</h1>
+<div id="step-04.-methylset-creation" class="section level2">
+<h2>Step 04. MethylSet Creation</h2>
 <p>Convert <code>RGset</code> to a raw <code>MethylSet</code> object
 without normalization.</p>
 <pre class="r"><code>MSet.raw &lt;- preprocessRaw(RGset)
@@ -2034,10 +2036,10 @@ than the Methylated signal across all 8 samples, consistent with the
 Red-channel Type I design identified in Step 3.</p>
 <hr />
 </div>
-<div id="step-05.-quality-control" class="section level1">
-<h1>Step 05. Quality Control</h1>
-<div id="qc-plot" class="section level2">
-<h2>5.1 QC Plot</h2>
+<div id="step-05.-quality-control" class="section level2">
+<h2>Step 05. Quality Control</h2>
+<div id="qc-plot" class="section level3">
+<h3>5.1 QC Plot</h3>
 <p>Calculate median methylated and unmethylated signal intensities for
 each sample and display the QC plot.</p>
 <pre class="r"><code>qc &lt;- getQC(MSet.raw)
@@ -2065,8 +2067,8 @@ distinguishable from background. Therefore, the QC plot should be
 interpreted together with the negative control intensities and detection
 p-values below.</p>
 </div>
-<div id="negative-control-intensities" class="section level2">
-<h2>5.2 Negative Control Intensities</h2>
+<div id="negative-control-intensities" class="section level3">
+<h3>5.2 Negative Control Intensities</h3>
 <p>Extract control probes from the array and plot the negative control
 intensities.</p>
 <pre class="r"><code>NegativeControl &lt;- data.frame(getProbeInfo(RGset, type = &quot;Control&quot;))
@@ -2100,8 +2102,8 @@ with the detection p-value results, this supports keeping the samples
 for downstream analysis despite the lower median intensities observed
 for some arrays in the QC plot.</p>
 </div>
-<div id="detection-p-values" class="section level2">
-<h2>5.3 Detection P-values</h2>
+<div id="detection-p-values" class="section level3">
+<h3>5.3 Detection P-values</h3>
 <p>Calculate detection p-values and identify failed probe-sample tests
 using Team 1’s threshold of 0.05.</p>
 <pre class="r"><code>DETECTION_P_THRESHOLD &lt;- 0.05
@@ -2160,8 +2162,8 @@ background. Therefore, no sample needs to be removed at this stage.</p>
 <hr />
 </div>
 </div>
-<div id="step-06.-raw-beta-and-m-values" class="section level1">
-<h1>Step 06. Raw Beta and M Values</h1>
+<div id="step-06.-raw-beta-and-m-values" class="section level2">
+<h2>Step 06. Raw Beta and M Values</h2>
 <p>Retrieve beta and M value matrices from the raw
 <code>MethylSet</code>.</p>
 <p>Extract raw beta values and inspect their dimensions and
@@ -2362,8 +2364,8 @@ Small shifts between the two groups can be observed, but the overall
 methylation profiles are largely comparable at the raw-data level.</p>
 <hr />
 </div>
-<div id="step-07.-normalization-with-preprocessnoob" class="section level1">
-<h1>Step 07. Normalization with preprocessNoob</h1>
+<div id="step-07.-normalization-with-preprocessnoob" class="section level2">
+<h2>Step 07. Normalization with preprocessNoob</h2>
 <p>The assigned Team 1 normalization method was
 <code>preprocessNoob</code>. Raw and normalized beta values were
 compared by Type I and Type II probe chemistry. This comparison is
@@ -2372,8 +2374,8 @@ differences: Type II beta values tend to be shifted toward intermediate
 methylation levels and can show different variability from Type I
 probes. Normalization is used to reduce technical variation before
 biological interpretation.</p>
-<div id="raw-beta-values-by-probe-chemistry" class="section level2">
-<h2>7.1 Raw Beta Values by Probe Chemistry</h2>
+<div id="raw-beta-values-by-probe-chemistry" class="section level3">
+<h3>7.1 Raw Beta Values by Probe Chemistry</h3>
 <p>Inspect the raw RGChannelSet and beta matrix.</p>
 <pre class="r"><code>dim(beta)</code></pre>
 <pre><code>## [1] 485512      8</code></pre>
@@ -2412,8 +2414,8 @@ sd_of_beta_II &lt;- apply(beta_II, 1, sd, na.rm = TRUE)
 d_sd_of_beta_I &lt;- density(sd_of_beta_I, na.rm = TRUE)
 d_sd_of_beta_II &lt;- density(sd_of_beta_II, na.rm = TRUE)</code></pre>
 </div>
-<div id="normalization-with-preprocessnoob" class="section level2">
-<h2>7.2 Normalization with preprocessNoob</h2>
+<div id="normalization-with-preprocessnoob" class="section level3">
+<h3>7.2 Normalization with preprocessNoob</h3>
 <p>Normalize the raw RGChannelSet with preprocessNoob.</p>
 <pre class="r"><code>preprocessNoob_results &lt;- preprocessNoob(RGset)</code></pre>
 <p>Inspect the normalized object.</p>
@@ -2431,8 +2433,8 @@ dim(beta_preprocessNoob)</code></pre>
 <pre><code>## [1] 485512      8</code></pre>
 <pre class="r"><code>head(beta_preprocessNoob)</code></pre>
 </div>
-<div id="normalized-beta-values-by-probe-chemistry" class="section level2">
-<h2>7.3 Normalized Beta Values by Probe Chemistry</h2>
+<div id="normalized-beta-values-by-probe-chemistry" class="section level3">
+<h3>7.3 Normalized Beta Values by Probe Chemistry</h3>
 <p>Split normalized beta values by probe chemistry.</p>
 <pre class="r"><code>beta_preprocessNoob_I &lt;- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfI$Name, ]
 beta_preprocessNoob_II &lt;- beta_preprocessNoob[rownames(beta_preprocessNoob) %in% dfII$Name, ]</code></pre>
@@ -2450,8 +2452,8 @@ sd_of_beta_preprocessNoob_II &lt;- apply(beta_preprocessNoob_II, 1, sd, na.rm = 
 d_sd_of_beta_preprocessNoob_I &lt;- density(sd_of_beta_preprocessNoob_I, na.rm = TRUE)
 d_sd_of_beta_preprocessNoob_II &lt;- density(sd_of_beta_preprocessNoob_II, na.rm = TRUE)</code></pre>
 </div>
-<div id="raw-vs-normalized-six-panel-comparison" class="section level2">
-<h2>7.4 Raw vs Normalized Six-panel Comparison</h2>
+<div id="raw-vs-normalized-six-panel-comparison" class="section level3">
+<h3>7.4 Raw vs Normalized Six-panel Comparison</h3>
 <p>Define colors for the raw and normalized beta boxplots.</p>
 <pre class="r"><code>pheno &lt;- data.frame(pData(RGset))
 
@@ -2528,8 +2530,8 @@ suitable for the downstream PCA and t-test analyses.</p>
 <hr />
 </div>
 </div>
-<div id="step-08.-pca-on-normalized-beta-values" class="section level1">
-<h1>Step 08. PCA on Normalized Beta Values</h1>
+<div id="step-08.-pca-on-normalized-beta-values" class="section level2">
+<h2>Step 08. PCA on Normalized Beta Values</h2>
 <p>PCA evaluates global sample structure and helps check whether major
 variation follows disease group, sex, or Sentrix_ID/batch.</p>
 <p>Extract sample information and prepare grouping variables for PCA
@@ -2543,8 +2545,8 @@ sample_info$Sex &lt;- factor(sample_info$Sex)
 
 # In pData(RGset), Sentrix_ID is stored as Slide.
 sample_info$Sentrix_ID &lt;- factor(sample_info$Slide)</code></pre>
-<div id="perform-pca" class="section level2">
-<h2>8.1 Perform PCA</h2>
+<div id="perform-pca" class="section level3">
+<h3>8.1 Perform PCA</h3>
 <p>Run PCA on the transposed normalized beta matrix, because probes are
 rows and samples are columns.</p>
 <pre class="r"><code>pca_results &lt;- prcomp(t(beta_preprocessNoob), scale. = TRUE)
@@ -2558,8 +2560,8 @@ y_padding &lt;- diff(range(pca_results$x[, &quot;PC2&quot;])) * 0.12
 xlim_pca &lt;- range(pca_results$x[, &quot;PC1&quot;]) + c(-x_padding, x_padding)
 ylim_pca &lt;- range(pca_results$x[, &quot;PC2&quot;]) + c(-y_padding, y_padding)</code></pre>
 </div>
-<div id="scree-plot" class="section level2">
-<h2>8.2 Scree Plot</h2>
+<div id="scree-plot" class="section level3">
+<h3>8.2 Scree Plot</h3>
 <p>Plot the proportion of variance explained by the first eight
 principal components.</p>
 <pre class="r"><code>bp &lt;- barplot(
@@ -2616,8 +2618,8 @@ small number of major sources explain much of the sample-to-sample
 variability. The PCA is therefore useful for checking whether this
 variation follows disease group, sex, or Sentrix_ID/batch patterns.</p>
 </div>
-<div id="pca-colored-by-disease-group" class="section level2">
-<h2>8.3 PCA Colored by Disease Group</h2>
+<div id="pca-colored-by-disease-group" class="section level3">
+<h3>8.3 PCA Colored by Disease Group</h3>
 <p>Color the PCA by disease group to check whether CTRL and DIS samples
 separate globally.</p>
 <pre class="r"><code>plot(
@@ -2666,8 +2668,8 @@ methylation differences are therefore likely to be CpG-specific or
 subtle rather than visible as a strong genome-wide shift in the first
 two principal components.</p>
 </div>
-<div id="pca-colored-by-sex" class="section level2">
-<h2>8.4 PCA Colored by Sex</h2>
+<div id="pca-colored-by-sex" class="section level3">
+<h3>8.4 PCA Colored by Sex</h3>
 <p>Color the PCA by sex to check whether sex contributes to the major
 sample structure.</p>
 <pre class="r"><code>plot(
@@ -2715,8 +2717,8 @@ However, the separation is not sufficient to explain all of the PCA
 structure by itself, so sex should be considered as a possible
 contributor rather than the only driver of variation.</p>
 </div>
-<div id="pca-colored-by-batch-slide" class="section level2">
-<h2>8.5 PCA Colored by Batch (Slide)</h2>
+<div id="pca-colored-by-batch-slide" class="section level3">
+<h3>8.5 PCA Colored by Batch (Slide)</h3>
 <p>Color the PCA by Sentrix_ID, stored in <code>pData(RGset)</code> as
 <code>Slide</code>, to check possible slide or batch structure.</p>
 <pre class="r"><code>plot(
@@ -2778,8 +2780,8 @@ variation related to sex or technical slide/batch effects.</p>
 <hr />
 </div>
 </div>
-<div id="step-09.-differential-methylation-analysis-with-t-test" class="section level1">
-<h1>Step 09. Differential Methylation Analysis with t-test</h1>
+<div id="step-09.-differential-methylation-analysis-with-t-test" class="section level2">
+<h2>Step 09. Differential Methylation Analysis with t-test</h2>
 <p>Differential methylation analysis identifies CpG-specific changes
 associated with disease status. Here, probe-wise t-tests compare
 normalized beta values between CTRL and DIS samples.</p>
@@ -2861,8 +2863,8 @@ M-value-based testing could be considered in a future analysis and might
 yield slightly different statistical sensitivity.</p>
 <hr />
 </div>
-<div id="step-10.-multiple-testing-correction" class="section level1">
-<h1>Step 10. Multiple Testing Correction</h1>
+<div id="step-10.-multiple-testing-correction" class="section level2">
+<h2>Step 10. Multiple Testing Correction</h2>
 <p>Multiple testing correction is applied to the t-test p-values because
 the analysis tests hundreds of thousands of CpG probes. We compare the
 nominal p-values with Bonferroni and Benjamini-Hochberg adjusted
@@ -2928,8 +2930,8 @@ only, not as genome-wide significant differentially methylated
 probes.</p>
 <hr />
 </div>
-<div id="step-11.-volcano-and-manhattan-plots" class="section level1">
-<h1>Step 11. Volcano and Manhattan Plots</h1>
+<div id="step-11.-volcano-and-manhattan-plots" class="section level2">
+<h2>Step 11. Volcano and Manhattan Plots</h2>
 <p>Volcano and Manhattan plots are used to visualize the differential
 methylation results from the t-test. Since no probes remained
 significant after multiple testing correction, these plots are
@@ -3080,8 +3082,8 @@ corrected-significant genomic loci in this dataset.</p>
 <hr />
 </div>
 </div>
-<div id="step-12.-heatmap-of-the-top-100-cpgs" class="section level1">
-<h1>Step 12. Heatmap of the Top 100 CpGs</h1>
+<div id="step-12.-heatmap-of-the-top-100-cpgs" class="section level2">
+<h2>Step 12. Heatmap of the Top 100 CpGs</h2>
 <p>To visualize the strongest candidate methylation patterns, we select
 the top 100 CpG probes ranked by nominal t-test p-value. These probes
 are used for hierarchical clustering of both probes and samples.</p>
@@ -3230,6 +3232,7 @@ significant after Bonferroni or Benjamini-Hochberg correction.
 Therefore, the heatmaps support a candidate group-associated methylation
 structure, but they do not override the multiple-testing result.</p>
 <hr />
+</div>
 </div>
 </div>
 <div id="conclusion" class="section level1">

@@ -47,11 +47,11 @@ Team 1 assignments:
 
 ---
 
-# Methodology
+# Analysis Workflow
 
 ---
 
-# Step 00. Setup
+## Step 00. Setup
 
 Clean the workspace before starting the analysis.
 
@@ -80,7 +80,7 @@ figuresDir <- "results/figures"
 
 ---
 
-# Step 01. Data Import and RGChannelSet Creation
+## Step 01. Data Import and RGChannelSet Creation
 
 Check the raw data folder and read the sample sheet.
 
@@ -117,7 +117,7 @@ The `SampleSheet` contains the metadata for our 8 samples, including group (CTRL
 
 ---
 
-# Step 02. Red and Green Fluorescence Channels
+## Step 02. Red and Green Fluorescence Channels
 
 Extract the raw Red and Green fluorescence intensity matrices from `RGset`. Each matrix has one row per probe address and one column per sample.
 
@@ -133,7 +133,7 @@ head(Green)
 
 ---
 
-# Step 03. Team 1 Address Check
+## Step 03. Team 1 Address Check
 
 Define the Team 1 address and look it up in the Type I and Type II probe information tables.
 
@@ -170,7 +170,7 @@ Address `42796479` corresponds to the **AddressA (unmethylated)** position of pr
 
 ---
 
-# Step 04. MethylSet Creation
+## Step 04. MethylSet Creation
 
 Convert `RGset` to a raw `MethylSet` object without normalization.
 
@@ -205,9 +205,9 @@ Unmeth[rownames(Unmeth) == "cg10602367", , drop = FALSE]
 
 ---
 
-# Step 05. Quality Control
+## Step 05. Quality Control
 
-## 5.1 QC Plot
+### 5.1 QC Plot
 
 Calculate median methylated and unmethylated signal intensities for each sample and display the QC plot.
 
@@ -219,7 +219,7 @@ plotQC(qc)
 
 **Interpretation:** The QC plot summarizes the median methylated and unmethylated signal intensities for each sample on the log2 scale. Several samples are flagged by this median-intensity criterion, indicating lower overall signal intensity compared with the other arrays. However, this plot alone is not sufficient to discard samples because it does not directly evaluate whether probe signals are distinguishable from background. Therefore, the QC plot should be interpreted together with the negative control intensities and detection p-values below.
 
-## 5.2 Negative Control Intensities
+### 5.2 Negative Control Intensities
 
 Extract control probes from the array and plot the negative control intensities.
 
@@ -232,7 +232,7 @@ controlStripPlot(RGset, controls = "NEGATIVE")
 
 **Interpretation:** Negative control probes are expected to show low fluorescence intensity because their sequences should not hybridize to human DNA. In this plot, the negative controls remain low in both the Green and Red channels, mostly below about 10 on the log2 intensity scale. This indicates that background fluorescence and nonspecific hybridization are not excessive in these arrays. Together with the detection p-value results, this supports keeping the samples for downstream analysis despite the lower median intensities observed for some arrays in the QC plot.
 
-## 5.3 Detection P-values
+### 5.3 Detection P-values
 
 Calculate detection p-values and identify failed probe-sample tests using Team 1's threshold of 0.05.
 
@@ -267,7 +267,7 @@ failed
 
 ---
 
-# Step 06. Raw Beta and M Values
+## Step 06. Raw Beta and M Values
 
 Retrieve beta and M value matrices from the raw `MethylSet`.
 
@@ -376,11 +376,11 @@ legend("topright", legend = c("CTRL", "DIS"),
 
 ---
 
-# Step 07. Normalization with preprocessNoob
+## Step 07. Normalization with preprocessNoob
 
 The assigned Team 1 normalization method was `preprocessNoob`. Raw and normalized beta values were compared by Type I and Type II probe chemistry. This comparison is important because Infinium Type I and Type II assays can show systematic differences: Type II beta values tend to be shifted toward intermediate methylation levels and can show different variability from Type I probes. Normalization is used to reduce technical variation before biological interpretation.
 
-## 7.1 Raw Beta Values by Probe Chemistry
+### 7.1 Raw Beta Values by Probe Chemistry
 
 Inspect the raw RGChannelSet and beta matrix.
 
@@ -444,7 +444,7 @@ d_sd_of_beta_I <- density(sd_of_beta_I, na.rm = TRUE)
 d_sd_of_beta_II <- density(sd_of_beta_II, na.rm = TRUE)
 ```
 
-## 7.2 Normalization with preprocessNoob
+### 7.2 Normalization with preprocessNoob
 
 Normalize the raw RGChannelSet with preprocessNoob.
 
@@ -476,7 +476,7 @@ dim(beta_preprocessNoob)
 head(beta_preprocessNoob)
 ```
 
-## 7.3 Normalized Beta Values by Probe Chemistry
+### 7.3 Normalized Beta Values by Probe Chemistry
 
 Split normalized beta values by probe chemistry.
 
@@ -509,7 +509,7 @@ d_sd_of_beta_preprocessNoob_I <- density(sd_of_beta_preprocessNoob_I, na.rm = TR
 d_sd_of_beta_preprocessNoob_II <- density(sd_of_beta_preprocessNoob_II, na.rm = TRUE)
 ```
 
-## 7.4 Raw vs Normalized Six-panel Comparison
+### 7.4 Raw vs Normalized Six-panel Comparison
 
 Define colors for the raw and normalized beta boxplots.
 
@@ -578,7 +578,7 @@ legend(x = mean(usr[1:2]), y = usr[3] - 0.16 * diff(usr[3:4]),
 
 ---
 
-# Step 08. PCA on Normalized Beta Values
+## Step 08. PCA on Normalized Beta Values
 
 PCA evaluates global sample structure and helps check whether major variation follows disease group, sex, or Sentrix_ID/batch.
 
@@ -593,7 +593,7 @@ sample_info$Sex <- factor(sample_info$Sex)
 sample_info$Sentrix_ID <- factor(sample_info$Slide)
 ```
 
-## 8.1 Perform PCA
+### 8.1 Perform PCA
 
 Run PCA on the transposed normalized beta matrix, because probes are rows and samples are columns.
 
@@ -610,7 +610,7 @@ xlim_pca <- range(pca_results$x[, "PC1"]) + c(-x_padding, x_padding)
 ylim_pca <- range(pca_results$x[, "PC2"]) + c(-y_padding, y_padding)
 ```
 
-## 8.2 Scree Plot
+### 8.2 Scree Plot
 
 Plot the proportion of variance explained by the first eight principal components.
 
@@ -663,7 +663,7 @@ legend(
 
 **Interpretation:** PC1 explains `r round(pca_var_explained[1] * 100, 1)`% of the variance and PC2 explains `r round(pca_var_explained[2] * 100, 1)`%, so the first two principal components capture about `r round(sum(pca_var_explained[1:2]) * 100, 1)`% of the total variation in the normalized beta values. The cumulative variance line shows how much total variation is captured as additional principal components are included. This indicates that a small number of major sources explain much of the sample-to-sample variability. The PCA is therefore useful for checking whether this variation follows disease group, sex, or Sentrix_ID/batch patterns.
 
-## 8.3 PCA Colored by Disease Group
+### 8.3 PCA Colored by Disease Group
 
 Color the PCA by disease group to check whether CTRL and DIS samples separate globally.
 
@@ -707,7 +707,7 @@ legend(
 
 **Interpretation:** When the PCA is colored by disease group, CTRL and DIS samples do not form two clearly separated clusters. Samples from both groups appear across the main PCA space, and some samples are separated from the rest regardless of group label. This suggests that disease status is not the dominant source of global methylation variation in this dataset. Any disease-associated methylation differences are therefore likely to be CpG-specific or subtle rather than visible as a strong genome-wide shift in the first two principal components.
 
-## 8.4 PCA Colored by Sex
+### 8.4 PCA Colored by Sex
 
 Color the PCA by sex to check whether sex contributes to the major sample structure.
 
@@ -751,7 +751,7 @@ legend(
 
 **Interpretation:** Coloring the PCA by sex shows that male and female samples contribute to the observed sample structure. The male samples tend to occupy distinct positions from several female samples, consistent with sex being an important biological source of methylation variation, partly because of sex-chromosome biology. However, the separation is not sufficient to explain all of the PCA structure by itself, so sex should be considered as a possible contributor rather than the only driver of variation.
 
-## 8.5 PCA Colored by Batch (Slide)
+### 8.5 PCA Colored by Batch (Slide)
 
 Color the PCA by Sentrix_ID, stored in `pData(RGset)` as `Slide`, to check possible slide or batch structure.
 
@@ -801,7 +801,7 @@ In a future, more robust analysis, rather than relying only on a simple t-test, 
 
 ---
 
-# Step 09. Differential Methylation Analysis with t-test
+## Step 09. Differential Methylation Analysis with t-test
 
 Differential methylation analysis identifies CpG-specific changes associated with disease status. Here, probe-wise t-tests compare normalized beta values between CTRL and DIS samples.
 
@@ -878,7 +878,7 @@ This dataset is small, with 8 samples in total and 4 samples per group. M-values
 
 ---
 
-# Step 10. Multiple Testing Correction
+## Step 10. Multiple Testing Correction
 
 Multiple testing correction is applied to the t-test p-values because the analysis tests hundreds of thousands of CpG probes. We compare the nominal p-values with Bonferroni and Benjamini-Hochberg adjusted p-values using the Team 1 threshold of 0.05.
 
@@ -932,7 +932,7 @@ This result shows why multiple testing correction is essential in methylation-ar
 
 ---
 
-# Step 11. Volcano and Manhattan Plots
+## Step 11. Volcano and Manhattan Plots
 
 Volcano and Manhattan plots are used to visualize the differential methylation results from the t-test. Since no probes remained significant after multiple testing correction, these plots are interpreted using nominal p-values only as exploratory evidence.
 
@@ -1059,7 +1059,7 @@ manhattan(
 
 ---
 
-# Step 12. Heatmap of the Top 100 CpGs
+## Step 12. Heatmap of the Top 100 CpGs
 
 To visualize the strongest candidate methylation patterns, we select the top 100 CpG probes ranked by nominal t-test p-value. These probes are used for hierarchical clustering of both probes and samples.
 
