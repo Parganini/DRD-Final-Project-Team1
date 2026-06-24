@@ -795,6 +795,10 @@ legend(
 
 **Interpretation:** Coloring the PCA by Sentrix_ID shows that technical slide/batch information may contribute to the sample structure. Some samples sharing the same Sentrix_ID appear closer together, while other samples are separated more strongly along PC1 or PC2. This pattern suggests a possible batch effect, although it is not perfectly separated by slide for every sample. Since PC1 explains the largest fraction of variance, Sentrix_ID should be mentioned as a potential technical confounder. The downstream t-test results should therefore be interpreted cautiously, especially because the sample size is small and no additional batch-correction model was applied.
 
+Because the PCA suggests that biological sex and Sentrix_ID/slide may contribute to the observed sample structure, the simple probe-wise t-test comparing only CTRL and DIS should be interpreted cautiously. These variables may act as potential confounders, especially in a small dataset where each sample has a strong influence on the analysis.
+
+In a future, more robust analysis, rather than relying only on a simple t-test, it would be recommended to use a linear modeling approach, such as `limma`, to adjust for relevant covariates. This would help separate disease-associated methylation differences from variation related to sex or technical slide/batch effects.
+
 ---
 
 # Step 09. Differential Methylation Analysis with t-test
@@ -867,6 +871,10 @@ Nominal_Significant_Probes
 ```
 
 **Interpretation:** The probe-wise t-test produced results for `r nrow(t_test_results)` CpG probes. At the nominal threshold of `P_Value <= 0.05`, `r Nominal_Significant_Probes` probes are significant before correction. These nominal results suggest candidate CpGs that may differ between CTRL and DIS samples, but they cannot be treated as final significant findings because hundreds of thousands of tests were performed. Multiple testing correction is therefore required in Step 10.
+
+In Step 9, the script runs the t-test on the normalized beta matrix. Beta values are highly intuitive because they range from 0 to 1 and allow direct interpretation of methylation differences, including `Delta_Beta`. However, beta values can be affected by heteroscedasticity near the extreme ends of the scale, close to 0 and 1.
+
+This dataset is small, with 8 samples in total and 4 samples per group. M-values are generally considered more suitable for statistical testing because they are often more homoscedastic than beta values. Therefore, while we performed the differential analysis using normalized beta values to keep the biological effect size easy to interpret, M-value-based testing could be considered in a future analysis and might yield slightly different statistical sensitivity.
 
 ---
 
@@ -1182,9 +1190,13 @@ legend(
 )
 ```
 
-**Interpretation:** The heatmaps show the methylation patterns of the top 100 nominally significant probes. In the complete-linkage heatmap, CTRL and DIS samples form a clear column-level separation, suggesting that the strongest nominal probes capture group-associated methylation structure. Comparing the three clustering methods helps evaluate whether the sample grouping pattern is stable or depends on the clustering method. If CTRL and DIS samples show similar column clustering across the three heatmaps, this supports a consistent group-associated pattern among the strongest nominal candidate probes. If the sample clustering changes substantially between linkage methods, the pattern should be interpreted more cautiously.
+**Interpretation:** We generated heatmaps comparing three different agglomerative hierarchical clustering methods: Complete, Average, and Single-linkage, to visually assess the robustness of our top 100 nominally significant probes.
 
-In all cases, these heatmaps remain exploratory because the probes were selected using nominal p-values, and Step 10 showed that no CpG remained significant after Bonferroni or Benjamini-Hochberg correction. Therefore, the heatmaps may highlight candidate group-associated methylation structure, but they do not override the multiple-testing result.
+As seen in the dendrograms for both the Complete and Average linkage heatmaps, the samples split into two distinct branches: one containing CTRL samples (blue) and the other containing DIS samples (orange). This is an important exploratory finding because, while the earlier PCA showed that global methylation variance may also be influenced by sex and Sentrix_ID/slide effects, these heatmaps suggest that isolating the top 100 nominally significant probes captures a coordinated group-associated methylation pattern.
+
+The Single-linkage heatmap also shows separation between CTRL and DIS samples, but it displays a more chaining-like structure, where samples or clusters are sequentially joined based on the closest individual points. As discussed in the course, single linkage can be more susceptible to noise and outliers because it joins clusters using the minimum distance between them. Therefore, Complete and Average linkage provide more compact and visually interpretable clustering patterns for this high-dimensional methylation dataset.
+
+However, these heatmaps remain exploratory because the probes were selected using nominal p-values, and Step 10 showed that no CpG remained significant after Bonferroni or Benjamini-Hochberg correction. Therefore, the heatmaps support a candidate group-associated methylation structure, but they do not override the multiple-testing result.
 
 ---
 
